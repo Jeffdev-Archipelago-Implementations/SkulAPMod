@@ -4,10 +4,13 @@ using SkulAPMod.Helpers;
 using HarmonyLib;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using Characters;
 using Level;
+using Runnables.Triggers.Customs;
+using Services;
 using TMPro;
 using UI;
 using UnityEngine;
@@ -144,7 +147,8 @@ namespace SkulAPMod
                     if (_mainThreadQueue.Count == 0) break;
                     action = _mainThreadQueue.Dequeue();
                 }
-                action();
+                try { action(); }
+                catch (Exception ex) { Log.Error($"[MainThread] Action threw: {ex}"); }
             }
 
             if (APClient == null || !APClient.HasPendingNotifications()) return;
@@ -162,7 +166,6 @@ namespace SkulAPMod
         private void OnArchipelagoDisconnected()
         {
             Log.Message("Disconnected from Archipelago");
-            ArchipelagoItemTracker.Clear();
         }
 
         private Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
@@ -211,31 +214,93 @@ namespace SkulAPMod
 
 namespace SkulAPMod.Patches
 {
-    [HarmonyPatch(typeof(Character), "DoMotion")]
-    public class Character_DoMotion_Patch
-    {
-        static void Prefix()
-        {
-            
-        }
-    }
-
     [HarmonyPatch(typeof(EnemyWave), "Clear")]
     public class EnemyWave_Clear_Patch
     {
-        static void Prefix()
+        static void Prefix(EnemyWave __instance)
         {
-            // This is where we should send locations for clearing waves
-            Scenes.GameBase.instance.uiManager.unlockNotice.Show(SkulAPMod._archipelagoSprite, "Sent [item] to [player]!");
+            SkulAPMod.APClient.SendLocation(173);
         }
     }
     
-    [HarmonyPatch(typeof(Data.GameData.Currency), "Earn", typeof(int))]
-    public class Currency_Earn_Patch
+    [HarmonyPatch(typeof(Data.GameData.Currency), "Save")]
+    public class Currency_SaveJson_Patch
     {
-        static void Prefix(ref int amount)
+        static bool Prefix(Data.GameData.Currency __instance)
         {
-            amount = 0;
+            if (!SkulAPMod.APClient.IsConnected) return true;
+            APSaveManager.CaptureCurrency(__instance);
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(Data.GameData.Progress.WitchMastery), "Save")]
+    public class WitchMastery_SaveJson_Patch
+    {
+        static bool Prefix(Data.GameData.Progress.WitchMastery __instance)
+        {
+            if (!SkulAPMod.APClient.IsConnected) return true;
+            APSaveManager.CaptureWitchMastery(__instance);
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(UI.UnlockNotice), "Show")]
+    public class UnlockNotice_Show_Patch
+    {
+        static bool Prefix(UI.UnlockNotice __instance, Sprite icon, string name,
+            Image ____icon, TMPro.TextMeshProUGUI ____name, Animator ____animator)
+        {
+            ____icon.sprite = icon;
+            ____icon.SetNativeSize();
+            ____name.text = name;
+            ____name.enableAutoSizing = true;
+            ____name.fontSizeMin = 8f;
+            ____name.fontSizeMax = 36f;
+
+            __instance.gameObject.SetActive(true);
+            if (__instance.gameObject.activeInHierarchy)
+            {
+                __instance.StopAllCoroutines();
+                __instance.StartCoroutine(CustomFadeInOut(__instance, ____animator));
+            }
+
+            return false;
+        }
+
+        private static IEnumerator CustomFadeInOut(UI.UnlockNotice instance, Animator animator)
+        {
+            const float holdTime = 4f;
+
+            if (animator.runtimeAnimatorController != null)
+            {
+                if (!animator.enabled) animator.enabled = true;
+                animator.Play(0, 0, 0f);
+            }
+
+            AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+            float halfLength = stateInfo.length * 0.5f;
+            animator.enabled = false;
+
+            // Fade in (first half of animation clip)
+            for (float t = 0f; t < halfLength; t += Time.unscaledDeltaTime)
+            {
+                animator.Update(Time.unscaledDeltaTime);
+                yield return null;
+            }
+
+            // Hold at peak
+            for (float t = 0f; t < holdTime; t += Time.unscaledDeltaTime)
+                yield return null;
+
+            // Fade out (second half of animation clip)
+            for (float t = 0f; t < halfLength; t += Time.unscaledDeltaTime)
+            {
+                animator.Update(Time.unscaledDeltaTime);
+                yield return null;
+            }
+
+            instance.gameObject.SetActive(false);
         }
     }
 }

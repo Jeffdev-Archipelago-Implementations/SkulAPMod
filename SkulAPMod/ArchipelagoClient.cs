@@ -1,4 +1,4 @@
-﻿using Archipelago.MultiClient.Net;
+using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.MessageLog.Messages;
 using Newtonsoft.Json.Linq;
@@ -12,6 +12,7 @@ namespace SkulAPMod
     {
         private ArchipelagoSession session;
         private readonly Queue<string> pendingNotifications = new Queue<string>();
+        private int _itemsToSkip;
 
 #if DEBUG
         private bool _mockConnected;
@@ -39,7 +40,6 @@ namespace SkulAPMod
 
                 SlotName = slotName;
                 session = ArchipelagoSessionFactory.CreateSession(hostname, port);
-
                 session.Socket.ErrorReceived += OnError;
                 session.Socket.SocketClosed += OnSocketClosed;
 
@@ -57,18 +57,15 @@ namespace SkulAPMod
                     SkulAPMod.sessionSlotData = loginSuccess.SlotData;
                     Log.Message($"Connected successfully! Slot: {loginSuccess.Slot}");
                     foreach (var data in loginSuccess.SlotData)
-                    {
                         Log.Message($"Slot Data: {data.Key} = {data.Value}");
-                    }
 
-                    // Subscribe to message received
                     session.MessageLog.OnMessageReceived += OnMessageReceived;
 
-                    // Load items we already have
-                    ArchipelagoItemTracker.LoadFromServer();
+                    APSaveManager.Load(SlotName);
+                    session.Items.ItemReceived += OnItemReceived;
+                    _itemsToSkip = ArchipelagoItemTracker.LoadFromServer();
 
                     OnConnected?.Invoke();
-
                     ArchipelagoItemTracker.LogAllReceivedItems();
                     ArchipelagoItemTracker.LogAllCheckedLocations();
                 }
@@ -89,10 +86,7 @@ namespace SkulAPMod
             }
         }
 
-        public ArchipelagoSession GetSession()
-        {
-            return session;
-        }
+        public ArchipelagoSession GetSession() => session;
 
         public void Disconnect()
         {
@@ -109,16 +103,34 @@ namespace SkulAPMod
 
         private void OnItemReceived(ReceivedItemsHelper helper)
         {
-            var item = helper.PeekItem();
+            while (_itemsToSkip > 0)
+            {
+                _itemsToSkip--;
+                helper.DequeueItem();
+            }
 
+            var item = helper.PeekItem();
             string itemName = session.Items.GetItemName(item.ItemId);
             string playerName = session.Players.GetPlayerName(item.Player);
+            ItemFlags flags = item.Flags;
+            long itemId = item.ItemId;
 
             Log.Message($"Item Received: {itemName} from {playerName}");
 
-            ArchipelagoItemTracker.AddReceivedItem(item.ItemId);
-            
-            Scenes.GameBase.instance.uiManager.unlockNotice.Show(SkulAPMod._archipelagoSprite, $"Received {itemName} from {playerName}!");
+            string color = flags switch
+            {
+                _ when (flags & ItemFlags.Trap) != 0         => "fa8080",
+                _ when (flags & ItemFlags.Advancement) != 0  => "9676f5",
+                _ when (flags & ItemFlags.NeverExclude) != 0 => "318ce0",
+                _                                             => "ffffff"
+            };
+            string notification = $"Received <color=#{color}>{itemName}</color>\nfrom {playerName}!";
+            SkulAPMod.QueueMainThreadAction(() =>
+            {
+                ArchipelagoItemTracker.AddReceivedItem(itemId);
+                ArchipelagoItemHandler.GrantItem(itemId);
+                Scenes.GameBase.instance?.uiManager?.unlockNotice?.Show(SkulAPMod._archipelagoSprite, notification);
+            });
 
             helper.DequeueItem();
         }
@@ -146,7 +158,6 @@ namespace SkulAPMod
         {
             if (session == null || SkulAPMod.sessionSlotData == null) return null;
 
-            // Options are nested under "options" key in the new apworld format
             if (SkulAPMod.sessionSlotData.TryGetValue("options", out object optionsObj))
             {
                 Dictionary<string, object> options = optionsObj switch
@@ -159,7 +170,6 @@ namespace SkulAPMod
                     return optValue.ToString();
             }
 
-            // Fall back to top-level
             if (SkulAPMod.sessionSlotData.TryGetValue(key, out object value))
                 return value.ToString();
 
@@ -194,7 +204,6 @@ namespace SkulAPMod
             OnDisconnected?.Invoke();
         }
 
-        /// <summary>Simulates receiving an item from the AP server.</summary>
         public void MockReceiveItem(long itemId, string itemName = null)
         {
             itemName ??= $"Item#{itemId}";
@@ -204,14 +213,8 @@ namespace SkulAPMod
         }
 #endif
 
-        public bool HasPendingNotifications()
-        {
-            return pendingNotifications.Count > 0;
-        }
+        public bool HasPendingNotifications() => pendingNotifications.Count > 0;
 
-        public string DequeuePendingNotification()
-        {
-            return pendingNotifications.Dequeue();
-        }
+        public string DequeuePendingNotification() => pendingNotifications.Dequeue();
     }
 }

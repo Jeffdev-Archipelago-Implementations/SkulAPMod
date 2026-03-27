@@ -1,136 +1,88 @@
-﻿using Archipelago.MultiClient.Net.Models;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+
 namespace SkulAPMod
 {
-    public class ArchipelagoItemTracker
+    public static class ArchipelagoItemTracker
     {
-        // Thread-safe collections so background socket callbacks can't corrupt the state
-        private static readonly ConcurrentDictionary<long, int> receivedItems = new ConcurrentDictionary<long, int>();
-        private static readonly ConcurrentDictionary<long, byte> checkedLocations = new ConcurrentDictionary<long, byte>();
-
-        public static void Initialize()
-        {
-            Log.Message("Initializing Archipelago Item Tracker");
-        }
-
-        // ========== ITEM METHODS ==========
+        private static Dictionary<long, int> ReceivedItems   => APSaveManager.SaveData.ReceivedItems;
+        private static HashSet<long>          CheckedLocations => APSaveManager.SaveData.CheckedLocations;
 
         public static void AddReceivedItem(long itemId)
         {
-            receivedItems.AddOrUpdate(itemId, 1, (_, existing) => existing + 1);
+            ReceivedItems[itemId] = ReceivedItems.TryGetValue(itemId, out int count) ? count + 1 : 1;
+            APSaveManager.WriteToDisk();
         }
 
-        public static bool HasItem(long itemId)
-        {
-            return receivedItems.ContainsKey(itemId);
-        }
-
-        public static int AmountOfItem(long itemId)
-        {
-            return receivedItems.TryGetValue(itemId, out int val) ? val : 0;
-        }
-
-        // ========== LOCATION METHODS ==========
+        public static bool HasItem(long itemId) => ReceivedItems.ContainsKey(itemId);
+        public static int AmountOfItem(long itemId) => ReceivedItems.TryGetValue(itemId, out int val) ? val : 0;
 
         public static void AddCheckedLocation(long locationId)
         {
-            checkedLocations.TryAdd(locationId, 0);
+            if (CheckedLocations.Add(locationId))
+                APSaveManager.WriteToDisk();
         }
 
-        public static bool HasLocation(long locationId)
-        {
-            return checkedLocations.ContainsKey(locationId);
-        }
+        public static bool HasLocation(long locationId) => CheckedLocations.Contains(locationId);
+        public static int GetCheckedLocationCount() => CheckedLocations.Count;
 
-        public static int GetCheckedLocationCount()
-        {
-            return checkedLocations.Count;
-        }
-
-        // ========== LOAD/CLEAR METHODS ==========
-
-        public static void Clear()
-        {
-            receivedItems.Clear();
-            checkedLocations.Clear();
-            Log.Message("[AP] Cleared all received items and checked locations");
-        }
-
-        // Make LoadFromServer authoritative: clear local state then populate with server state.
-        // Safe to call from background threads because collections are concurrent.
-        public static void LoadFromServer()
+        // Grants items received while offline, re-sends unconfirmed location checks,
+        // and returns the server's total item count (used to fast-forward the item queue).
+        public static int LoadFromServer()
         {
             try
             {
                 var session = SkulAPMod.APClient.GetSession();
-                if (session == null)
-                    return;
+                if (session == null) return 0;
 
-                Clear();
+                var allItems = session.Items.AllItemsReceived;
+                int serverCount = allItems?.Count ?? 0;
+                int grantedCount = ReceivedItems.Values.Sum();
 
-                // Load items
-                var itemsList = session.Items.AllItemsReceived?.ToList();
-                if (itemsList != null)
+                if (serverCount > grantedCount)
                 {
-                    Log.Message($"[AP] Loading {itemsList.Count} items from server");
-                    foreach (ItemInfo item in itemsList)
+                    Log.Message($"[AP] Granting {serverCount - grantedCount} offline item(s)");
+                    foreach (var item in allItems.Skip(grantedCount))
                     {
-                        Log.Message($"[AP] Item: {item.ItemName} (ID: {item.ItemId})");
-                        receivedItems.AddOrUpdate(item.ItemId, 1, (_, existing) => existing + 1);
+                        long itemId = item.ItemId;
+                        SkulAPMod.QueueMainThreadAction(() =>
+                        {
+                            AddReceivedItem(itemId);
+                            ArchipelagoItemHandler.GrantItem(itemId);
+                        });
                     }
-
-                    // Throw all the received items into the filler manager to load the state.
-                    // ArchipelagoFillerManager.LoadFillerFromReceivedItems(itemsList);
                 }
 
-                // Load locations
-                List<long> locationsList = session.Locations.AllLocationsChecked?.ToList();
-                if (locationsList == null) return;
-                Log.Message($"[AP] Loading {locationsList.Count} checked locations from server");
-                foreach (long locationId in locationsList)
+                var serverChecked = new HashSet<long>(session.Locations.AllLocationsChecked ?? Enumerable.Empty<long>());
+                var pending = CheckedLocations.Where(id => !serverChecked.Contains(id)).ToArray();
+                if (pending.Length > 0)
                 {
-                    Log.Message($"[AP] Location checked: {locationId}");
-                    checkedLocations.TryAdd(locationId, 0);
+                    Log.Message($"[AP] Re-sending {pending.Length} pending location check(s)");
+                    session.Locations.CompleteLocationChecks(pending);
                 }
+
+                return serverCount;
             }
             catch (System.Exception ex)
             {
                 Log.Error($"[AP] LoadFromServer exception: {ex}");
+                return 0;
             }
         }
-
-        // Convenience: force a resyncing from the current session (call on reconnection)
-        public static void ResyncFromServer()
-        {
-            Log.Message("[AP] Resyncing Archipelago state from server");
-            LoadFromServer();
-        }
-
-        // ========== HELPER METHODS ==========
-        
-        
-
-        // ========== DEBUG METHODS ==========
 
         public static void LogAllReceivedItems()
         {
-            var total = receivedItems.Sum(kv => kv.Value);
-            Log.Message($"[AP Debug] === All Received Items ({total} total entries) ===");
-            foreach (var kv in receivedItems.OrderBy(kv => kv.Key))
-            {
-                Log.Message($"[AP Debug] Item ID: {kv.Key} Count: {kv.Value}");
-            }
+            int total = ReceivedItems.Values.Sum();
+            Log.Message($"[AP Debug] === Received Items ({total} total) ===");
+            foreach (var kv in ReceivedItems.OrderBy(kv => kv.Key))
+                Log.Message($"[AP Debug] Item {kv.Key}: x{kv.Value}");
         }
 
         public static void LogAllCheckedLocations()
         {
-            Log.Message($"[AP Debug] === All Checked Locations ({checkedLocations.Count} total) ===");
-            foreach (var locationId in checkedLocations.Keys.OrderBy(x => x))
-            {
-                Log.Message($"[AP Debug] Location ID: {locationId}");
-            }
+            Log.Message($"[AP Debug] === Checked Locations ({CheckedLocations.Count} total) ===");
+            foreach (var id in CheckedLocations.OrderBy(x => x))
+                Log.Message($"[AP Debug] Location {id}");
         }
     }
 }

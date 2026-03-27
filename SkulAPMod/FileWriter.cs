@@ -1,59 +1,162 @@
-﻿using Archipelago.MultiClient.Net;
-using System.IO;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using System.IO;
+using Data;
 using UnityEngine;
 
 namespace SkulAPMod
 {
-    [System.Serializable]
     public class APSaveData
     {
-        public int currency;
-    }
-    
-    public class FileWriter : MonoBehaviour
-    {
-        private const string LastConnectionFileName = "last_connection.txt";
-        private const string SaveFileName = "ap_save.json";
-
-        public void SaveCurrency(int amount)
+        public class CurrencyEntry
         {
+            public int Balance;
+            public int Income;
+            public int Outcome;
+            public int TotalIncome;
+        }
+
+        public class WitchMasteryEntry
+        {
+            public int[] Skull = new int[4];
+            public int[] Body = new int[4];
+            public int[] Soul = new int[4];
+        }
+
+        public CurrencyEntry Gold = new CurrencyEntry();
+        public CurrencyEntry DarkQuartz = new CurrencyEntry();
+        public CurrencyEntry Bone = new CurrencyEntry();
+        public CurrencyEntry HeartQuartz = new CurrencyEntry();
+        public WitchMasteryEntry WitchMastery = new WitchMasteryEntry();
+        // itemId → number of times received and granted; used to filter replayed AP items on reconnect
+        public Dictionary<long, int> ReceivedItems = new Dictionary<long, int>();
+        // location IDs the player has checked; re-sent to server on connect if not yet confirmed
+        public HashSet<long> CheckedLocations = new HashSet<long>();
+    }
+
+    public static class APSaveManager
+    {
+        public static APSaveData SaveData { get; private set; } = new APSaveData();
+        private static string _slotName;
+
+        private static string SavePath => string.IsNullOrEmpty(_slotName)
+            ? null
+            : Path.Combine(Application.persistentDataPath, $"{_slotName}_ap.json");
+
+        public static void Load(string slotName)
+        {
+            _slotName = slotName;
+            string path = SavePath;
+            if (path != null && File.Exists(path))
+            {
+                try
+                {
+                    SaveData = JsonConvert.DeserializeObject<APSaveData>(File.ReadAllText(path)) ?? new APSaveData();
+                    Log.Message($"[APSave] Loaded save for slot '{slotName}'");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[APSave] Failed to load: {ex.Message}");
+                    SaveData = new APSaveData();
+                }
+            }
+            else
+            {
+                SaveData = new APSaveData();
+                Log.Message($"[APSave] No existing save for '{slotName}', starting fresh");
+            }
+            ApplyToGame();
+        }
+
+        public static void WriteToDisk()
+        {
+            if (string.IsNullOrEmpty(_slotName)) return;
             try
             {
-                string path = Application.persistentDataPath + "/" + SaveFileName;
-
-                APSaveData saveData = new APSaveData
-                {
-                    currency = amount
-                };
-                
-                string json = JsonUtility.ToJson(saveData, true);
-                File.WriteAllText(path, json);
+                File.WriteAllText(SavePath, JsonConvert.SerializeObject(SaveData, Formatting.Indented));
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                Debug.LogError($"Failed to write save data: {ex.Message}");
+                Log.Error($"[APSave] Write failed: {ex.Message}");
             }
         }
 
-        // Save the last used connection info to disk. Overwrites each time, so it's the default on the next run.
+        public static void CaptureCurrency(GameData.Currency currency)
+        {
+            APSaveData.CurrencyEntry entry;
+            if (currency == GameData.Currency.gold)           entry = SaveData.Gold;
+            else if (currency == GameData.Currency.darkQuartz) entry = SaveData.DarkQuartz;
+            else if (currency == GameData.Currency.bone)       entry = SaveData.Bone;
+            else if (currency == GameData.Currency.heartQuartz) entry = SaveData.HeartQuartz;
+            else return;
+
+            entry.Balance     = currency.balance;
+            entry.Income      = currency.income;
+            entry.Outcome     = currency.outcome;
+            entry.TotalIncome = currency.totalIncome;
+            WriteToDisk();
+        }
+
+        public static void CaptureWitchMastery(GameData.Progress.WitchMastery witch)
+        {
+            var wm = SaveData.WitchMastery;
+            for (int i = 0; i < 4; i++)
+            {
+                wm.Skull[i] = witch.skull[i].value;
+                wm.Body[i]  = witch.body[i].value;
+                wm.Soul[i]  = witch.soul[i].value;
+            }
+            WriteToDisk();
+        }
+
+        public static void ApplyToGame()
+        {
+            ApplyCurrency(GameData.Currency.gold,          SaveData.Gold);
+            ApplyCurrency(GameData.Currency.darkQuartz,    SaveData.DarkQuartz);
+            ApplyCurrency(GameData.Currency.bone,          SaveData.Bone);
+            ApplyCurrency(GameData.Currency.heartQuartz,   SaveData.HeartQuartz);
+            ApplyWitchMastery();
+        }
+
+        private static void ApplyCurrency(GameData.Currency currency, APSaveData.CurrencyEntry entry)
+        {
+            if (currency == null || entry == null) return;
+            currency.balance     = entry.Balance;
+            currency.income      = entry.Income;
+            currency.outcome     = entry.Outcome;
+            currency.totalIncome = entry.TotalIncome;
+        }
+
+        private static void ApplyWitchMastery()
+        {
+            var witch = GameData.Progress.witch;
+            if (witch == null) return;
+            var wm = SaveData.WitchMastery;
+            for (int i = 0; i < 4; i++)
+            {
+                witch.skull[i].value = wm.Skull[i];
+                witch.body[i].value  = wm.Body[i];
+                witch.soul[i].value  = wm.Soul[i];
+            }
+        }
+    }
+
+    public class FileWriter : MonoBehaviour
+    {
+        private const string LastConnectionFileName = "last_connection.txt";
+
         public void WriteLastConnection(string host, int port, string slotName, string password)
         {
             try
             {
                 string path = Application.persistentDataPath + "/" + LastConnectionFileName;
-                var lines = new List<string>
-                {
-                    host ?? "",
-                    port.ToString(),
-                    slotName ?? "",
-                    password ?? ""
-                };
+                var lines = new List<string> { host ?? "", port.ToString(), slotName ?? "", password ?? "" };
                 File.WriteAllLines(path, lines);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                Debug.LogError($"Failed to write last connection info: {ex.Message}");
+                Debug.LogError($"Failed to write last connection: {ex.Message}");
             }
         }
 
@@ -62,19 +165,18 @@ namespace SkulAPMod
             try
             {
                 string path = Application.persistentDataPath + "/" + LastConnectionFileName;
-                if (!File.Exists(path))
-                    return (null, null, null, null);
-
+                if (!File.Exists(path)) return (null, null, null, null);
                 string[] lines = File.ReadAllLines(path);
-                string host = lines.Length > 0 ? lines[0] : null;
-                string port = lines.Length > 1 ? lines[1] : null;
-                string slot = lines.Length > 2 ? lines[2] : null;
-                string pass = lines.Length > 3 ? lines[3] : null;
-                return (host, port, slot, pass);
+                return (
+                    lines.Length > 0 ? lines[0] : null,
+                    lines.Length > 1 ? lines[1] : null,
+                    lines.Length > 2 ? lines[2] : null,
+                    lines.Length > 3 ? lines[3] : null
+                );
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                Debug.LogError($"Failed to read last connection info: {ex.Message}");
+                Debug.LogError($"Failed to read last connection: {ex.Message}");
                 return (null, null, null, null);
             }
         }
