@@ -116,6 +116,17 @@ namespace SkulAPMod
         public const long DruidNpcFreed       = 251;
         public const long KnightNpcFreed      = 252;
 
+        // ========== WITCH BONUS LOCATION LOOKUPS ==========
+        // skull: marrowImplant(0), fastDislocation(1), nutritionSupply(2), enhanceExoskeleton(3)
+        public static readonly long[] SkullBonusLocations = { MarrowTransplant1, QuickDislocation1, NutritionSupply1, ExoskeletonReinforcement1 };
+        // body:  strongBone(0), fractureImmunity(1), heavyFrame(2), reassemble(3)
+        public static readonly long[] BodyBonusLocations  = { ThickBone1, FracturePrevention1, HeavyFrame1, Reassemble1 };
+        // soul:  soulAcceleration(0), willOfAncestor(1), fatalMind(2), ancientAlchemy(3)
+        public static readonly long[] SoulBonusLocations  = { SpiritAcceleration1, AncestralFortitude1, FatalMind1, AncientAlchemy1 };
+
+        // Room cleared base location IDs, indexed by chapter (0=Forest, 1=GrandHall, 2=BlackLab, 3=Fortress)
+        public static readonly long[] ChapterRoomBaseLocations = { ForestRoom1Cleared, GrandHallRoom1Cleared, BlackLabRoom1Cleared, FortressRoom1Cleared };
+
         // ========== GOAL CONSTANTS ==========
 
 

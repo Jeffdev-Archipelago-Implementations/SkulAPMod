@@ -33,6 +33,9 @@ namespace SkulAPMod
         public Dictionary<long, int> ReceivedItems = new Dictionary<long, int>();
         // location IDs the player has checked; re-sent to server on connect if not yet confirmed
         public HashSet<long> CheckedLocations = new HashSet<long>();
+        // last known map position, persisted so it survives reconnects mid-run
+        public int CurrentChapter  = -1;
+        public int CurrentMapIndex = -1;
     }
 
     public static class APSaveManager
@@ -104,9 +107,17 @@ namespace SkulAPMod
             for (int i = 0; i < 4; i++)
             {
                 wm.Skull[i] = witch.skull[i].value;
-                wm.Body[i]  = witch.body[i].value;
-                wm.Soul[i]  = witch.soul[i].value;
+                wm.Body[i] = witch.body[i].value;
+                wm.Soul[i] = witch.soul[i].value;
             }
+
+            WriteToDisk();
+        }
+
+        public static void CaptureStage(int chapter, int mapIndex)
+        {
+            SaveData.CurrentChapter  = chapter;
+            SaveData.CurrentMapIndex = mapIndex;
             WriteToDisk();
         }
 
@@ -117,6 +128,11 @@ namespace SkulAPMod
             ApplyCurrency(GameData.Currency.bone,          SaveData.Bone);
             ApplyCurrency(GameData.Currency.heartQuartz,   SaveData.HeartQuartz);
             ApplyWitchMastery();
+            if (SaveData.CurrentChapter >= 0)
+            {
+                Patches.StageTracker.Chapter  = SaveData.CurrentChapter;
+                Patches.StageTracker.MapIndex = SaveData.CurrentMapIndex;
+            }
         }
 
         private static void ApplyCurrency(GameData.Currency currency, APSaveData.CurrencyEntry entry)

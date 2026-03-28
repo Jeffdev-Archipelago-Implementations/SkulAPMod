@@ -1,17 +1,18 @@
 using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.Enums;
+using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.MessageLog.Messages;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using Archipelago.MultiClient.Net.Helpers;
+using System.Linq;
+using Archipelago.MultiClient.Net.Models;
+using Newtonsoft.Json.Linq;
 
 namespace SkulAPMod
 {
     public class ArchipelagoClient
     {
-        private ArchipelagoSession session;
-        private readonly Queue<string> pendingNotifications = new Queue<string>();
+        private ArchipelagoSession session { get; set; }
         private int _itemsToSkip;
 
 #if DEBUG
@@ -59,8 +60,6 @@ namespace SkulAPMod
                     foreach (var data in loginSuccess.SlotData)
                         Log.Message($"Slot Data: {data.Key} = {data.Value}");
 
-                    session.MessageLog.OnMessageReceived += OnMessageReceived;
-
                     APSaveManager.Load(SlotName);
                     session.Items.ItemReceived += OnItemReceived;
                     _itemsToSkip = ArchipelagoItemTracker.LoadFromServer();
@@ -94,11 +93,6 @@ namespace SkulAPMod
             session.Socket.DisconnectAsync();
             session = null;
             Log.Message("Disconnected from Archipelago");
-        }
-
-        private void OnMessageReceived(LogMessage message)
-        {
-            pendingNotifications.Enqueue(message.ToString());
         }
 
         private void OnItemReceived(ReceivedItemsHelper helper)
@@ -208,13 +202,13 @@ namespace SkulAPMod
         {
             itemName ??= $"Item#{itemId}";
             ArchipelagoItemTracker.AddReceivedItem(itemId);
-            pendingNotifications.Enqueue($"[MockAP] Received: {itemName}");
             Log.Message($"[MockAP] Item received: {itemName} ({itemId})");
         }
 #endif
-
-        public bool HasPendingNotifications() => pendingNotifications.Count > 0;
-
-        public string DequeuePendingNotification() => pendingNotifications.Dequeue();
+        
+        public ScoutedItemInfo TryScoutLocation(long locationId, bool createHint = false)
+        {
+            return session.Locations.ScoutLocationsAsync(createHint, locationId)?.Result?.Values.First();
+        }
     }
 }
