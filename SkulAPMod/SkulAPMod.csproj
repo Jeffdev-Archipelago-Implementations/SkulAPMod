@@ -247,6 +247,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<EmbeddedResource Include="Resources\Sprites\archipelago_logo.png" />
+		<EmbeddedResource Include="Resources\Sprites\skul_ap.png" />
 	</ItemGroup>
 </Project>

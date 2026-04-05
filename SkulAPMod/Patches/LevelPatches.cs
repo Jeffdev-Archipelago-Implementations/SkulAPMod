@@ -1,5 +1,7 @@
 using HarmonyLib;
 using Level;
+using Services;
+using Singletons;
 
 namespace SkulAPMod.Patches
 {
@@ -28,6 +30,43 @@ namespace SkulAPMod.Patches
             StageTracker.MapIndex++;
             Log.Info($"Map loaded: Chapter={StageTracker.Chapter}, MapIndex={StageTracker.MapIndex}");
             APSaveManager.CaptureStage(StageTracker.Chapter, StageTracker.MapIndex);
+        }
+    }
+
+    [HarmonyPatch(typeof(Gate), "OnActivate")]
+    public class Gate_OnActivate_Patch
+    {
+        static void Postfix(Gate.Type ____type)
+        {
+            if (!SkulAPMod.APClient.IsConnected) return;
+            Log.Info($"GATE TYPE: {____type}");
+            if (____type != Gate.Type.Boss && ____type != Gate.Type.Adventurer) return;
+
+            var chapter = Singleton<Service>.Instance.levelManager.currentChapter;
+            if (chapter == null) return;
+
+            int chapterIndex = (int)chapter.type - 3; // Chapter1=0, Chapter2=1, Chapter3=2, Chapter4=3
+            if (chapterIndex is < 0 or > 3) return;
+
+            long? locationId = ____type == Gate.Type.Boss
+                ? chapterIndex switch
+                {
+                    0 => ArchipelagoConstants.ForestBossDefeated,
+                    1 => ArchipelagoConstants.GrandHallBossDefeated,
+                    2 => ArchipelagoConstants.BlackLabBossDefeated,
+                    3 => ArchipelagoConstants.FortressBossDefeated,
+                    _ => (long?)null
+                }
+                : chapterIndex switch // Adventurer = mini-boss (Fortress has none)
+                {
+                    0 => ArchipelagoConstants.ForestMiniBossDefeated,
+                    1 => ArchipelagoConstants.GrandHallMiniBossDefeated,
+                    2 => ArchipelagoConstants.BlackLabMiniBossDefeated,
+                    _ => (long?)null
+                };
+
+            if (locationId.HasValue && !ArchipelagoItemTracker.HasLocation(locationId.Value))
+                SkulAPMod.APClient.SendLocation(locationId.Value);
         }
     }
 

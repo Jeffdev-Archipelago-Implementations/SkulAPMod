@@ -13,7 +13,7 @@
 
         public static void CheckAndCompleteGoal()
         {
-            if (!ArchipelagoHelper.IsConnectedAndEnabled) return;
+            if (!Utils.IsConnectedAndEnabled) return;
         }
 
         private static void CompleteGoal()

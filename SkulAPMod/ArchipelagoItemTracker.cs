@@ -25,9 +25,7 @@ namespace SkulAPMod
 
         public static bool HasLocation(long locationId) => CheckedLocations.Contains(locationId);
         public static int GetCheckedLocationCount() => CheckedLocations.Count;
-
-        // Grants items received while offline, re-sends unconfirmed location checks,
-        // and returns the server's total item count (used to fast-forward the item queue).
+        
         public static int LoadFromServer()
         {
             try

@@ -4,10 +4,21 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using SkulAPMod.Patches;
 
 // #if DEBUG
 // using UnityHotReloadNS;
 // #endif
+
+// TODO:
+// Make the witch bonuses display how many you have of each kind in the menu alongside check info
+// Gate progression for chapters and witch bonuses, ensuring you cannot access the extra levels without Progressives
+// Add goaling after beating the final boss
+// Add a queue system so it queues up each unlock notice and goes through them one at a time
+// Add shrine checks
+// Add shop checks
+// Add Death Knight remodel castle checks
+// Skull Randomization
 
 namespace SkulAPMod
 {
@@ -46,7 +57,7 @@ namespace SkulAPMod
         private void InitializeComponents()
         {
             fileWriter = gameObject.AddComponent<FileWriter>();
-            _archipelagoSprite = LoadEmbeddedSprite("SkulAPMod.Resources.Sprites.archipelago_logo.png");
+            _archipelagoSprite = LoadEmbeddedSprite("SkulAPMod.Resources.Sprites.skul_ap.png");
 
             APClient = new ArchipelagoClient();
             APClient.OnConnected += OnArchipelagoConnected;
@@ -68,7 +79,9 @@ namespace SkulAPMod
 
                 var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                 tex.LoadImage(bytes);
-                return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+                tex.filterMode = FilterMode.Bilinear;
+                tex.wrapMode = TextureWrapMode.Clamp;
+                return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 1, SpriteMeshType.FullRect);
             }
             catch (Exception ex)
             {
@@ -108,6 +121,20 @@ namespace SkulAPMod
             Log.Message("Connected to Archipelago - loading items");
             uiObject.GetComponent<ConnectionUI>().ToggleUI();
             APSessionManager.OnConnected();
+            PreloadWitchScoutCache();
+        }
+
+        private static void PreloadWitchScoutCache()
+        {
+            // All witch bonus locations are contiguous from MarrowTransplant1 through AncientAlchemy2
+            int count = (int)(ArchipelagoConstants.AncientAlchemy2 - ArchipelagoConstants.MarrowTransplant1 + 1);
+            var ids = new long[count];
+            for (int i = 0; i < count; i++)
+                ids[i] = ArchipelagoConstants.MarrowTransplant1 + i;
+
+            var scouted = APClient.BulkScoutLocations(ids);
+            WitchOption_UpdateTexts_Patch.PreloadCache(scouted);
+            Log.Message($"Pre-scouted {scouted.Count} witch bonus locations");
         }
 
         private void OnArchipelagoDisconnected()

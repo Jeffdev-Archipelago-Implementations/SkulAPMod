@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Archipelago.MultiClient.Net.Models;
 using Newtonsoft.Json.Linq;
+// ReSharper disable All
 
 namespace SkulAPMod
 {
@@ -28,6 +29,7 @@ namespace SkulAPMod
             (session?.Socket.Connected ?? false);
 
         public string SlotName { get; private set; }
+        public string Seed { get; private set; }
 
         public event Action OnConnected;
         public event Action<string> OnConnectionFailed;
@@ -60,7 +62,10 @@ namespace SkulAPMod
                     foreach (var data in loginSuccess.SlotData)
                         Log.Message($"Slot Data: {data.Key} = {data.Value}");
 
-                    APSaveManager.Load(SlotName);
+                    SlotName = slotName;
+                    Seed = session.RoomState.Seed;
+
+                    APSaveManager.Load(SlotName, Seed);
                     session.Items.ItemReceived += OnItemReceived;
                     _itemsToSkip = ArchipelagoItemTracker.LoadFromServer();
 
@@ -111,13 +116,7 @@ namespace SkulAPMod
 
             Log.Message($"Item Received: {itemName} from {playerName}");
 
-            string color = flags switch
-            {
-                _ when (flags & ItemFlags.Trap) != 0         => "fa8080",
-                _ when (flags & ItemFlags.Advancement) != 0  => "9676f5",
-                _ when (flags & ItemFlags.NeverExclude) != 0 => "318ce0",
-                _                                             => "ffffff"
-            };
+            string color = Utils.GetItemColor(flags);
             string notification = $"Received <color=#{color}>{itemName}</color>\nfrom {playerName}!";
             SkulAPMod.QueueMainThreadAction(() =>
             {
@@ -209,6 +208,13 @@ namespace SkulAPMod
         public ScoutedItemInfo TryScoutLocation(long locationId, bool createHint = false)
         {
             return session.Locations.ScoutLocationsAsync(createHint, locationId)?.Result?.Values.First();
+        }
+
+        public Dictionary<long, ScoutedItemInfo> BulkScoutLocations(long[] locationIds)
+        {
+            if (!IsConnected || locationIds.Length == 0) return new Dictionary<long, ScoutedItemInfo>();
+            return session.Locations.ScoutLocationsAsync(false, locationIds)?.Result
+                   ?? new Dictionary<long, ScoutedItemInfo>();
         }
     }
 }
