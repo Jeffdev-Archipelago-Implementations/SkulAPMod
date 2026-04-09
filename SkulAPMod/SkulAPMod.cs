@@ -3,22 +3,13 @@ using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Services;
 using UnityEngine;
 using SkulAPMod.Patches;
 
 // #if DEBUG
 // using UnityHotReloadNS;
 // #endif
-
-// TODO:
-// Make the witch bonuses display how many you have of each kind in the menu alongside check info
-// Gate progression for chapters and witch bonuses, ensuring you cannot access the extra levels without Progressives
-// Add goaling after beating the final boss
-// Add a queue system so it queues up each unlock notice and goes through them one at a time
-// Add shrine checks
-// Add shop checks
-// Add Death Knight remodel castle checks
-// Skull Randomization
 
 namespace SkulAPMod
 {
@@ -121,12 +112,13 @@ namespace SkulAPMod
             Log.Message("Connected to Archipelago - loading items");
             uiObject.GetComponent<ConnectionUI>().ToggleUI();
             APSessionManager.OnConnected();
+            // Pre-load Witch hints
             PreloadWitchScoutCache();
         }
 
         private static void PreloadWitchScoutCache()
         {
-            // All witch bonus locations are contiguous from MarrowTransplant1 through AncientAlchemy2
+            // Accounts for all witch locations
             int count = (int)(ArchipelagoConstants.AncientAlchemy2 - ArchipelagoConstants.MarrowTransplant1 + 1);
             var ids = new long[count];
             for (int i = 0; i < count; i++)
@@ -139,7 +131,12 @@ namespace SkulAPMod
 
         private void OnArchipelagoDisconnected()
         {
-            Log.Message("Disconnected from Archipelago");
+            Log.Message("Disconnected from Archipelago — returning to title screen");
+            QueueMainThreadAction(() =>
+            {
+                try { Singletons.Singleton<Service>.Instance.ResetGameScene(); }
+                catch (Exception ex) { Log.Error($"Failed to return to title screen: {ex.Message}"); }
+            });
         }
 
         public static void CreateUI()

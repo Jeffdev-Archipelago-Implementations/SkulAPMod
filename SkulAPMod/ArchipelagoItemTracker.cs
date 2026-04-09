@@ -82,5 +82,26 @@ namespace SkulAPMod
             foreach (var id in CheckedLocations.OrderBy(x => x))
                 Log.Message($"[AP Debug] Location {id}");
         }
+
+        public static int AmountOfWitchBonus(string bonusKey)
+        {
+            if (ArchipelagoConstants.BonusKeyToItemId.TryGetValue(bonusKey, out long itemId))
+                return AmountOfItem(itemId);
+            return 0;
+        }
+
+        public static bool CheckWitchTreeAvailability(string treeName, int indexInTree)
+        {
+            return treeName switch
+            {
+                "Characters.WitchBonus+Skull" => // Skull
+                    AmountOfItem(ArchipelagoConstants.ProgressiveSkullTree) >= indexInTree,
+                "Characters.WitchBonus+Bone" => // Bone
+                    AmountOfItem(ArchipelagoConstants.ProgressiveBoneTree) >= indexInTree,
+                "Characters.WitchBonus+Spirit" => // Spirit
+                    AmountOfItem(ArchipelagoConstants.ProgressiveSpiritTree) >= indexInTree,
+                _ => false
+            };
+        }
     }
 }

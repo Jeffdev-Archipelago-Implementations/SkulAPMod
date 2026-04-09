@@ -1,27 +1,24 @@
 using Data;
 using HarmonyLib;
 using Level.Npc;
+using SkulAPMod;
 
 namespace SkulAPMod.Patches
 {
-    [HarmonyPatch(typeof(GameData.Progress), "SetRescued")]
-    public class Progress_SetRescued_Patch
+    // When the player purchases a renovation, send the next unsent check.
+    [HarmonyPatch(typeof(GameData.Progress), "housingPoint", MethodType.Setter)]
+    public class Progress_HousingPoint_Set_Patch
     {
-        static void Postfix(NpcType npcType, bool value)
+        static void Postfix()
         {
-            if (!value || !SkulAPMod.APClient.IsConnected || ArchipelagoItemHandler.GrantingNpc) return;
+            if (!SkulAPMod.APClient.IsConnected) return;
 
-            long? locationId = npcType switch
-            {
-                NpcType.Fox        => ArchipelagoConstants.FoxNpcFreed,
-                NpcType.Ogre       => ArchipelagoConstants.OgreNpcFreed,
-                NpcType.Druid      => ArchipelagoConstants.DruidNpcFreed,
-                NpcType.DeathKnight => ArchipelagoConstants.KnightNpcFreed,
-                _                  => null
-            };
+            int sent = 0;
+            for (int i = 0; i < 4; i++)
+                if (ArchipelagoItemTracker.HasLocation(ArchipelagoConstants.CastleRepair1 + i)) sent++;
 
-            if (locationId.HasValue && !ArchipelagoItemTracker.HasLocation(locationId.Value))
-                SkulAPMod.APClient.SendLocation(locationId.Value);
+            if (sent >= 4) return;
+            SkulAPMod.APClient.SendLocation(ArchipelagoConstants.CastleRepair1 + sent);
         }
     }
 }

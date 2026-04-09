@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Archipelago.MultiClient.Net.Models;
 using Newtonsoft.Json.Linq;
+
 // ReSharper disable All
 
 namespace SkulAPMod
@@ -34,6 +35,7 @@ namespace SkulAPMod
         public event Action OnConnected;
         public event Action<string> OnConnectionFailed;
         public event Action OnDisconnected;
+        public event Action OnRestartRequired;
 
         public void Connect(string hostname, int port, string slotName, string password = "")
         {
@@ -65,7 +67,15 @@ namespace SkulAPMod
                     SlotName = slotName;
                     Seed = session.RoomState.Seed;
 
+                    if (Patches.Application_persistentDataPath_Patch.SetSlot(SlotName, Seed))
+                    {
+                        Log.Message("[AP] New slot detected — please relaunch the game to load save data.");
+                        OnRestartRequired?.Invoke();
+                        return;
+                    }
+
                     APSaveManager.Load(SlotName, Seed);
+                    ArchipelagoItemHandler.LoadOptions();
                     session.Items.ItemReceived += OnItemReceived;
                     _itemsToSkip = ArchipelagoItemTracker.LoadFromServer();
 

@@ -14,6 +14,7 @@
         public static void CheckAndCompleteGoal()
         {
             if (!Utils.IsConnectedAndEnabled) return;
+            CompleteGoal();
         }
 
         private static void CompleteGoal()

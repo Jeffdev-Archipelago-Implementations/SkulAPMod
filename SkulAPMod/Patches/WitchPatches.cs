@@ -12,26 +12,155 @@ namespace SkulAPMod.Patches
     [HarmonyPatch(typeof(Data.GameData.Progress.WitchMastery), "Save")]
     public class WitchMastery_SaveJson_Patch
     {
-        static bool Prefix(Data.GameData.Progress.WitchMastery __instance)
+        static void Postfix(Data.GameData.Progress.WitchMastery __instance)
         {
-            if (!SkulAPMod.APClient.IsConnected) return true;
-            APSaveManager.CaptureWitchMastery(__instance);
-            SendWitchLocationChecks(APSaveManager.SaveData.WitchMastery);
-            return false;
+            if (!SkulAPMod.APClient.IsConnected) return;
+            SendWitchLocationChecks(__instance);
         }
 
-        private static void SendWitchLocationChecks(APSaveData.WitchMasteryEntry wm)
+        private static void SendWitchLocationChecks(Data.GameData.Progress.WitchMastery wm)
         {
-            long[][] baseLookup = { ArchipelagoConstants.SkullBonusLocations, 
-                ArchipelagoConstants.BodyBonusLocations, 
-                ArchipelagoConstants.SoulBonusLocations };
-            int[][] levels      = { wm.Skull, wm.Body, wm.Soul };
+            for (int i = 0; i < 4; i++)
+            {
+                CheckTree(ArchipelagoConstants.SkullBonusLocations[i], wm.skull[i].value);
+                CheckTree(ArchipelagoConstants.BodyBonusLocations[i],  wm.body[i].value);
+                CheckTree(ArchipelagoConstants.SoulBonusLocations[i],  wm.soul[i].value);
+            }
+        }
 
-            for (int tree = 0; tree < 3; tree++)
-                for (int i = 0; i < levels[tree].Length; i++)
-                    for (int lvl = 0; lvl < levels[tree][i]; lvl++)
-                        if (!ArchipelagoItemTracker.HasLocation(baseLookup[tree][i] + lvl))
-                            SkulAPMod.APClient.SendLocation(baseLookup[tree][i] + lvl);
+        private static void CheckTree(long baseId, int level)
+        {
+            for (int lvl = 0; lvl < level; lvl++)
+                if (!ArchipelagoItemTracker.HasLocation(baseId + lvl))
+                    SkulAPMod.APClient.SendLocation(baseId + lvl);
+        }
+    }
+    
+    public static class WitchLevelOverride
+    {
+        [System.ThreadStatic]
+        public static int? Value;
+    }
+
+    // Intercept the level getter so Update()/Attach() see the AP count when we set the override.
+    [HarmonyPatch(typeof(Characters.WitchBonus.Bonus), "level", MethodType.Getter)]
+    public class WitchBonus_Level_Get_Patch
+    {
+        static bool Prefix(ref int __result)
+        {
+            if (WitchLevelOverride.Value.HasValue)
+            {
+                __result = WitchLevelOverride.Value.Value;
+                return false;
+            }
+            return true;
+        }
+    }
+
+    // When AP is connected, run LevelUp's side-effects (quartz, save) but bypass the
+    // property setter so Attach()/Update() are not triggered — stats come from AP items only.
+    [HarmonyPatch(typeof(Characters.WitchBonus.Bonus), "LevelUp")]
+    public class WitchBonus_LevelUp_Patch
+    {
+        static bool Prefix(Characters.WitchBonus.Bonus __instance, ref bool __result)
+        {
+            if (!SkulAPMod.APClient.IsConnected) return true;
+
+            if (!__instance.ready || __instance.level == __instance.maxLevel ||
+                !Data.GameData.Currency.darkQuartz.Consume(__instance.levelUpCost))
+            {
+                __result = false;
+                return false;
+            }
+
+            // Write directly to the backing data, skipping the property setter
+            // so Attach() and Update() are not called.
+            ((Data.Data<int>)(object)__instance._data).value++;
+            Data.GameData.Currency.SaveAll();
+            Data.GameData.Progress.SaveAll();
+            __result = true;
+            return false;
+        }
+    }
+
+    // At game load, Initialize() would normally call Attach()/Update() based on the
+    // saved purchase count. Override so it uses the AP-granted count instead.
+    [HarmonyPatch(typeof(Characters.WitchBonus.Bonus), "Initialize")]
+    public class WitchBonus_Initialize_Patch
+    {
+        static bool Prefix(Characters.WitchBonus.Bonus __instance)
+        {
+            if (!SkulAPMod.APClient.IsConnected) return true;
+
+            int apLevel = ArchipelagoItemTracker.AmountOfWitchBonus(__instance._key);
+            WitchLevelOverride.Value = apLevel;
+            try
+            {
+                if (apLevel > 0) __instance.Attach();
+                __instance.Update();
+            }
+            finally
+            {
+                WitchLevelOverride.Value = null;
+            }
+            return false;
+        }
+    }
+    
+    public static class WitchStatApplicator
+    {
+        public static void Apply(long itemId)
+        {
+            var wb = WitchBonus.instance;
+            if (wb?.skull == null) return;
+
+            var bonus = itemId switch
+            {
+                ArchipelagoConstants.MarrowTransplant         => (WitchBonus.Bonus)wb.skull.marrowImplant,
+                ArchipelagoConstants.QuickDislocation         => wb.skull.fastDislocation,
+                ArchipelagoConstants.NutritionSupply          => wb.skull.nutritionSupply,
+                ArchipelagoConstants.ExoskeletonReinforcement => wb.skull.enhanceExoskeleton,
+                ArchipelagoConstants.ThickBone                => wb.body.strongBone,
+                ArchipelagoConstants.FracturePrevention       => wb.body.fractureImmunity,
+                ArchipelagoConstants.HeavyFrame               => wb.body.heavyFrame,
+                ArchipelagoConstants.Reassemble               => wb.body.reassemble,
+                ArchipelagoConstants.SpiritAcceleration       => wb.soul.soulAcceleration,
+                ArchipelagoConstants.AncestralFortitude       => wb.soul.willOfAncestor,
+                ArchipelagoConstants.FatalMind                => wb.soul.fatalMind,
+                ArchipelagoConstants.AncientAlchemy           => wb.soul.ancientAlchemy,
+                _ => null
+            };
+
+            if (bonus == null) return;
+
+            int apLevel    = ArchipelagoItemTracker.AmountOfItem(itemId);
+            int prevLevel  = apLevel - 1;
+
+            WitchLevelOverride.Value = apLevel;
+            try
+            {
+                if (prevLevel == 0) bonus.Attach();
+                bonus.Update();
+            }
+            finally
+            {
+                WitchLevelOverride.Value = null;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(UI.Witch.TreeElement), "Set")]
+    public class WitchTreeElement_Set_Patch
+    {
+        static void Postfix(ref UI.Witch.TreeElement __instance)
+        {
+            bool isInteractable = ArchipelagoItemTracker.CheckWitchTreeAvailability(
+                __instance._bonus.tree.ToString(),
+                __instance._bonus.indexInTree);
+            
+            Log.Info(isInteractable);
+
+            __instance.interactable = isInteractable;
         }
     }
 
@@ -49,6 +178,7 @@ namespace SkulAPMod.Patches
         static void Postfix(
             WitchBonus.Bonus ____bonus,
             TMP_Text ____name,
+            TMP_Text ____level,
             TMP_Text ____description,
             TMP_Text ____nextLevelDescription,
             GameObject ____nextLevelContainer)
@@ -58,15 +188,21 @@ namespace SkulAPMod.Patches
             long? baseId = GetBaseLocationId(____bonus);
             if (baseId.HasValue && ____bonus.level < ____bonus.maxLevel)
             {
+                bool isInteractable = ArchipelagoItemTracker.CheckWitchTreeAvailability(
+                    ____bonus.tree.ToString(),
+                    ____bonus.indexInTree);
+                
                 long locationId = baseId.Value + ____bonus.level;
                 var info = GetScoutInfo(locationId);
+                ____level.text = $"Checks Sent: {____bonus.level}/{____bonus.maxLevel}";
                 if (info != null)
                 {
-                    string color = Utils.GetItemColor(info.Flags);
-                    string name = $"<color=#{color}>{info.ItemName}</color>";
-                    string desc = Utils.GetItemDescText(info.Flags, info.Player.Name);
-                    string extraText = $"{____bonus.displayName} {____bonus.level + 1}";
-                        
+                    string color = isInteractable ? Utils.GetItemColor(info.Flags) : "ff0000";
+                    string name = isInteractable ? $"<color=#{color}>{info.ItemName}</color>" : $"<color=#{color}>Locked</color>";
+                    string desc = isInteractable ? Utils.GetItemDescText(info.Flags, info.Player.Name) : "You need more of this Progressive Tree to view this!";
+                    int received = ArchipelagoItemTracker.AmountOfWitchBonus(____bonus._key);
+                    string extraText = $"{____bonus.displayName} {____bonus.level + 1} (You currently have {received} of {____bonus.displayName} sent to you.)";
+
                     ____name.text = name;
                     ____description.text = desc;
                     if (____nextLevelContainer.activeSelf)
@@ -75,6 +211,10 @@ namespace SkulAPMod.Patches
                     return;
                 }
             }
+
+            int totalReceived = ArchipelagoItemTracker.AmountOfWitchBonus(____bonus._key);
+            ____description.text =
+                $"{____description.text}\nYou have sent all checks attached to this. You currently have {totalReceived} of {____bonus.displayName} sent to you.";
             
             if (____nextLevelContainer.activeSelf)
                 ____nextLevelDescription.text = "???";

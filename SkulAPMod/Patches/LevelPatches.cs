@@ -1,7 +1,9 @@
+using Characters;
+using Characters.Player;
 using HarmonyLib;
 using Level;
-using Services;
-using Singletons;
+using Level.Altars;
+using SkulAPMod.Helpers;
 
 namespace SkulAPMod.Patches
 {
@@ -12,61 +14,37 @@ namespace SkulAPMod.Patches
         {
             int newChapter = (int)__instance.type - 3; // Chapter1=0, Chapter2=1, Chapter3=2, Chapter4=3
             Log.Info($"{__instance.type}, {__instance.stageName} {__instance.chapterName}");
-            if (newChapter != StageTracker.Chapter)
-            {
-                StageTracker.Chapter  = newChapter;
-                StageTracker.MapIndex = -1; // Map.Awake will increment to 0 when the first map loads
-            }
+            StageTracker.Chapter = newChapter;
         }
     }
 
-    [HarmonyPatch(typeof(Map), "Awake")]
-    public class Map_Awake_Patch
+    [HarmonyPatch(typeof(PlayerKillCounter), "CountKill")]
+    public class PlayerKillCounter_CountKill_Patch
     {
-        static void Postfix(Map __instance)
-        {
-            Log.Info($"MAP TYPE: {__instance.type}");
-            if (__instance.type != Map.Type.Normal) return;
-            StageTracker.MapIndex++;
-            Log.Info($"Map loaded: Chapter={StageTracker.Chapter}, MapIndex={StageTracker.MapIndex}");
-            APSaveManager.CaptureStage(StageTracker.Chapter, StageTracker.MapIndex);
-        }
-    }
-
-    [HarmonyPatch(typeof(Gate), "OnActivate")]
-    public class Gate_OnActivate_Patch
-    {
-        static void Postfix(Gate.Type ____type)
+        static void Postfix(ITarget target)
         {
             if (!SkulAPMod.APClient.IsConnected) return;
-            Log.Info($"GATE TYPE: {____type}");
-            if (____type != Gate.Type.Boss && ____type != Gate.Type.Adventurer) return;
+            if ((object)target?.character == null) return;
+            if (target.character.type != Character.Type.Boss) return;
 
-            var chapter = Singleton<Service>.Instance.levelManager.currentChapter;
-            if (chapter == null) return;
+            long? locationId = target.character.key switch
+            {
+                Key.Yggdrasil    => ArchipelagoConstants.ForestBossDefeated,
+                Key.AwakenLeiana => ArchipelagoConstants.GrandHallBossDefeated,
+                Key.Chimera      => ArchipelagoConstants.BlackLabBossDefeated,
+                Key.Pope         => ArchipelagoConstants.FortressBossDefeated,
+                _                => null
+            };
 
-            int chapterIndex = (int)chapter.type - 3; // Chapter1=0, Chapter2=1, Chapter3=2, Chapter4=3
-            if (chapterIndex is < 0 or > 3) return;
+            if (locationId.HasValue)
+            {
+                Log.Info($"Boss killed: key={target.character.key}, locationId={locationId}");
+                if (!ArchipelagoItemTracker.HasLocation(locationId.Value))
+                    SkulAPMod.APClient.SendLocation(locationId.Value);
+            }
 
-            long? locationId = ____type == Gate.Type.Boss
-                ? chapterIndex switch
-                {
-                    0 => ArchipelagoConstants.ForestBossDefeated,
-                    1 => ArchipelagoConstants.GrandHallBossDefeated,
-                    2 => ArchipelagoConstants.BlackLabBossDefeated,
-                    3 => ArchipelagoConstants.FortressBossDefeated,
-                    _ => (long?)null
-                }
-                : chapterIndex switch // Adventurer = mini-boss (Fortress has none)
-                {
-                    0 => ArchipelagoConstants.ForestMiniBossDefeated,
-                    1 => ArchipelagoConstants.GrandHallMiniBossDefeated,
-                    2 => ArchipelagoConstants.BlackLabMiniBossDefeated,
-                    _ => (long?)null
-                };
-
-            if (locationId.HasValue && !ArchipelagoItemTracker.HasLocation(locationId.Value))
-                SkulAPMod.APClient.SendLocation(locationId.Value);
+            if (target.character.key == Key.FirstHero3)
+                ArchipelagoGoalManager.CheckAndCompleteGoal();
         }
     }
 
@@ -75,18 +53,77 @@ namespace SkulAPMod.Patches
     {
         static void Postfix()
         {
-            if (Map.Instance == null || Map.Instance.type != Map.Type.Normal) return;
-            if (Map.Instance.waveContainer == null || Map.Instance.waveContainer.enemyWaves.Length == 0) return;
-
-            Log.Info($"Wave clear: Chapter={StageTracker.Chapter}, MapIndex={StageTracker.MapIndex}");
+            if (Map.Instance == null) return;
             if (!SkulAPMod.APClient.IsConnected) return;
 
             int chapter = StageTracker.Chapter;
-            if (chapter < 0 || chapter >= ArchipelagoConstants.ChapterRoomBaseLocations.Length) return;
+            if (chapter < 0) return;
 
-            long locationId = ArchipelagoConstants.ChapterRoomBaseLocations[chapter] + StageTracker.MapIndex;
+            switch (Map.Instance.type)
+            {
+                case Map.Type.Normal:
+                case Map.Type.Special:
+                    if (Map.Instance.waveContainer == null || Map.Instance.waveContainer.enemyWaves.Length == 0) return;
+                    if (chapter >= ArchipelagoConstants.ChapterRoomBaseLocations.Length) return;
+                    int sent = GetRoomChecksSent(chapter);
+                    if (sent >= ArchipelagoItemHandler.ReqRoomCount) return;
+                    Log.Info($"Wave clear: Chapter={chapter}, RoomsSentSoFar={sent}");
+                    SendIfNew(ArchipelagoConstants.ChapterRoomBaseLocations[chapter] + sent);
+                    break;
+
+                case Map.Type.Manual:
+                    if (Map.Instance.mapReward.type != MapReward.Type.Adventurer) break;
+                    long? locationId = chapter switch
+                    {
+                        0 => ArchipelagoConstants.ForestMiniBossDefeated,
+                        1 => ArchipelagoConstants.GrandHallMiniBossDefeated,
+                        2 => ArchipelagoConstants.BlackLabMiniBossDefeated,
+                        _ => null
+                    };
+                    Log.Info($"Mini-boss defeated: Chapter={chapter}, LocationId={locationId}");
+                    if (locationId.HasValue) SendIfNew(locationId.Value);
+                    break;
+            }
+        }
+
+        private static int GetRoomChecksSent(int chapter)
+        {
+            long baseId = ArchipelagoConstants.ChapterRoomBaseLocations[chapter];
+            int max = ArchipelagoItemHandler.ReqRoomCount;
+            int count = 0;
+            for (int i = 0; i < max; i++)
+                if (ArchipelagoItemTracker.HasLocation(baseId + i)) count++;
+            return count;
+        }
+
+        private static void SendIfNew(long locationId)
+        {
             if (!ArchipelagoItemTracker.HasLocation(locationId))
                 SkulAPMod.APClient.SendLocation(locationId);
+        }
+    }
+
+    [HarmonyPatch(typeof(Altar), "Destroy")]
+    public class Altar_Destroy_Patch
+    {
+        private const int ShrineCap = 5;
+
+        static void Postfix()
+        {
+            if (!SkulAPMod.APClient.IsConnected) return;
+
+            int chapter = StageTracker.Chapter;
+            if (chapter < 0 || chapter >= ArchipelagoConstants.ChapterShrineBaseLocations.Length) return;
+
+            long baseId = ArchipelagoConstants.ChapterShrineBaseLocations[chapter];
+            int sent = 0;
+            for (int i = 0; i < ShrineCap; i++)
+                if (ArchipelagoItemTracker.HasLocation(baseId + i)) sent++;
+
+            if (sent >= ShrineCap) return;
+
+            Log.Info($"Shrine destroyed: Chapter={chapter}, ShrinesSentSoFar={sent}");
+            SkulAPMod.APClient.SendLocation(baseId + sent);
         }
     }
 }

@@ -17,6 +17,7 @@ namespace SkulAPMod
         private string port = "38281";
         private string password = "";
         private string statusMessage = "";
+        private bool _restartRequired;
         private Rect windowRect = new Rect(Screen.width / 2 - 300, Screen.height / 2 - 250, 800, 700);
 
         private ArchipelagoClient apClient;
@@ -27,6 +28,11 @@ namespace SkulAPMod
             apClient.OnConnected += () => statusMessage = "Connected successfully!";
             apClient.OnConnectionFailed += (error) => statusMessage = $"Failed: {error}";
             apClient.OnDisconnected += () => statusMessage = "Disconnected";
+            apClient.OnRestartRequired += () =>
+            {
+                _restartRequired = true;
+                statusMessage = "New slot detected. Please restart the game.";
+            };
 
             // When connected, persist the connection info so it can be used as default next time
             apClient.OnConnected += () =>
@@ -69,16 +75,12 @@ namespace SkulAPMod
             if (needsConn)
             {
                 showUI = true;
+                Time.timeScale = 0f;
             }
             else if (!needsConn)
             {
+                showUI = false;
                 Time.timeScale = 1f;
-            }
-
-            // F1 only works when connected
-            if (!needsConn && Input.GetKeyDown(KeyCode.F1))
-            {
-                ToggleUI();
             }
         }
 
@@ -101,9 +103,6 @@ namespace SkulAPMod
         {
             GUILayout.BeginVertical();
 
-            GUILayout.Label("Press F1 to toggle this menu");
-            GUILayout.Space(15);
-
             GUILayout.Label("Hostname:");
             hostname = GUILayout.TextField(hostname, GUILayout.Height(40));
             GUILayout.Space(10);
@@ -120,7 +119,11 @@ namespace SkulAPMod
             password = GUILayout.PasswordField(password, '*', GUILayout.Height(40));
             GUILayout.Space(15);
 
-            if (apClient is { IsConnected: true })
+            if (_restartRequired)
+            {
+                // Buttons intentionally hidden — player must restart the game.
+            }
+            else if (apClient is { IsConnected: true })
             {
                 if (GUILayout.Button("Disconnect", GUILayout.Height(40)))
                 {

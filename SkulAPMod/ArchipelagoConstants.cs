@@ -35,9 +35,6 @@ namespace SkulAPMod
         public const long DarkQuartzItem = 31;
         public const long GoldItem       = 32;
 
-        // Other items
-        public const long CastleRepair = 33;
-
         // Traps
         public const long DeSkullTrap = 40;
 
@@ -75,46 +72,63 @@ namespace SkulAPMod
         public const long AncientAlchemy1           = 170;
         public const long AncientAlchemy2           = 171;
 
-        // Forest of Harmony (172–209)
-        public const long ForestRoom1Cleared        = 172;
-        public const long ForestRoom10Cleared       = 181;
-        public const long ForestShopItem1           = 202;
-        public const long ForestShopItem8           = 209;
-        public const long ForestMiniBossDefeated    = 242;
-        public const long ForestBossDefeated        = 243;
+        // Shop items (8 per area) (currently unused)
+        public const long ForestShopItem1           = 196;
+        public const long ForestShopItem8           = 203;
+        public const long GrandHallShopItem1        = 204;
+        public const long GrandHallShopItem8        = 211;
+        public const long BlackLabShopItem1         = 212;
+        public const long BlackLabShopItem8         = 219;
+        public const long FortressShopItem1         = 228;
+        public const long FortressShopItem8         = 235;
 
-        // Grand Hall (182–217)
-        public const long GrandHallRoom1Cleared     = 182;
-        public const long GrandHallRoom10Cleared    = 191;
-        public const long GrandHallShopItem1        = 210;
-        public const long GrandHallShopItem8        = 217;
-        public const long GrandHallMiniBossDefeated = 244;
-        public const long GrandHallBossDefeated     = 245;
+        // Castle Repair (4 upgrades)
+        public const long CastleRepair1             = 220;
 
-        // The Black Lab (192–225)
-        public const long BlackLabRoom1Cleared      = 192;
-        public const long BlackLabRoom10Cleared     = 201;
-        public const long BlackLabShopItem1         = 218;
-        public const long BlackLabShopItem8         = 225;
-        public const long BlackLabMiniBossDefeated  = 246;
-        public const long BlackLabBossDefeated      = 247;
+        // Boss and mini-boss defeats
+        public const long ForestMiniBossDefeated    = 236;
+        public const long ForestBossDefeated        = 237;
+        public const long GrandHallMiniBossDefeated = 238;
+        public const long GrandHallBossDefeated     = 239;
+        public const long BlackLabMiniBossDefeated  = 240;
+        public const long BlackLabBossDefeated      = 241;
+        public const long FortressBossDefeated      = 242;
 
-        // Castle Repair (226–229)
-        public const long CastleRepair1             = 226;
-        public const long CastleRepair4             = 229;
+        // NPC locations (243–246)
+        public const long FoxNpcFreed               = 243;
+        public const long OgreNpcFreed              = 244;
+        public const long DruidNpcFreed             = 245;
+        public const long KnightNpcFreed            = 246;
 
-        // Fortress of Fate (230–241, 248)
-        public const long FortressRoom1Cleared      = 230;
-        public const long FortressRoom4Cleared      = 233;
-        public const long FortressShopItem1         = 234;
-        public const long FortressShopItem8         = 241;
-        public const long FortressBossDefeated      = 248;
-
-        // NPC locations (249–252)
-        public const long FoxNpcFreed         = 249;
-        public const long OgreNpcFreed        = 250;
-        public const long DruidNpcFreed       = 251;
-        public const long KnightNpcFreed      = 252;
+        // Shrine (altar) breaks — 5 per chapter (247–266)
+        public const long ForestShrine1Broken       = 247;
+        public const long GrandHallShrine1Broken    = 252;
+        public const long BlackLabShrine1Broken     = 257;
+        public const long FortressShrine1Broken     = 262;
+        
+        // Room cleared (8 rooms per area)
+        public const long ForestRoom1Cleared        = 500;
+        public const long GrandHallRoom1Cleared     = 600;
+        public const long BlackLabRoom1Cleared      = 700;
+        public const long FortressRoom1Cleared      = 800;
+        
+        // ========== WITCH BONUS KEY → ITEM ID ==========
+        public static readonly System.Collections.Generic.Dictionary<string, long> BonusKeyToItemId =
+            new System.Collections.Generic.Dictionary<string, long>
+            {
+                ["witch/skull/0"] = MarrowTransplant,
+                ["witch/skull/1"] = QuickDislocation,
+                ["witch/skull/2"] = NutritionSupply,
+                ["witch/skull/3"] = ExoskeletonReinforcement,
+                ["witch/body/0"]  = ThickBone,
+                ["witch/body/1"]  = FracturePrevention,
+                ["witch/body/2"]  = HeavyFrame,
+                ["witch/body/3"]  = Reassemble,
+                ["witch/soul/0"]  = SpiritAcceleration,
+                ["witch/soul/1"]  = AncestralFortitude,
+                ["witch/soul/2"]  = FatalMind,
+                ["witch/soul/3"]  = AncientAlchemy,
+            };
 
         // ========== WITCH BONUS LOCATION LOOKUPS ==========
         // skull: marrowImplant(0), fastDislocation(1), nutritionSupply(2), enhanceExoskeleton(3)
@@ -125,12 +139,16 @@ namespace SkulAPMod
         public static readonly long[] SoulBonusLocations  = { SpiritAcceleration1, AncestralFortitude1, FatalMind1, AncientAlchemy1 };
 
         // Room cleared base location IDs, indexed by chapter (0=Forest, 1=GrandHall, 2=BlackLab, 3=Fortress)
-        public static readonly long[] ChapterRoomBaseLocations = { ForestRoom1Cleared, GrandHallRoom1Cleared, BlackLabRoom1Cleared, FortressRoom1Cleared };
+        public static readonly long[] ChapterRoomBaseLocations   = { ForestRoom1Cleared,    GrandHallRoom1Cleared,    BlackLabRoom1Cleared,    FortressRoom1Cleared };
+
+        // Shrine break base location IDs, indexed by chapter
+        public static readonly long[] ChapterShrineBaseLocations = { ForestShrine1Broken, GrandHallShrine1Broken, BlackLabShrine1Broken, FortressShrine1Broken };
 
         // ========== GOAL CONSTANTS ==========
 
 
         // ========== OPTION CONSTANTS ==========
-
+        public const string QuartzMultOption    = "quartz_mult";
+        public const string ReqRoomCountOption  = "req_room_count";
     }
 }
