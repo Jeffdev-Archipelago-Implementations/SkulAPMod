@@ -129,21 +129,20 @@ namespace SkulAPMod.Patches
 
     // Block chapter advancement if the player hasn't received enough ProgressiveStage items.
     // Chapter1=index 0 (free), Chapter2=needs 1, Chapter3=needs 2, Chapter4=needs 3.
-    // When blocked, calls ResetGame() — identical to the pause-menu Restart button.
-    [HarmonyPatch(typeof(LevelManager), "Load", new[] { typeof(Chapter.Type) })]
-    public class LevelManager_Load_Patch
+    [HarmonyPatch(typeof(LevelManager), "ChangeChapter")]
+    public class LevelManager_ChangeChapter_Patch
     {
-        static bool Prefix(LevelManager __instance, Chapter.Type chapter)
+        static bool Prefix(LevelManager __instance, Chapter.Type __0)
         {
             if (SkulAPMod.APClient == null || !SkulAPMod.APClient.IsConnected) return true;
 
-            int chapterIndex = (int)chapter - 3; // Chapter1=0, Chapter2=1, Chapter3=2, Chapter4=3
-            if (chapterIndex <= 0 || chapterIndex > 4) return true; // not a gateable main chapter
+            int chapterIndex = (int)__0 - 3; // Chapter1=0, Chapter2=1, Chapter3=2, Chapter4=3
+            if (chapterIndex is <= 0 or > 3) return true; // Chapter1 is free, >3 is not a main chapter
 
             int allowed = ArchipelagoItemTracker.AmountOfItem(ArchipelagoConstants.ProgressiveStage);
             if (chapterIndex <= allowed) return true;
 
-            Log.Info($"[AP] Chapter gated: chapterIndex={chapterIndex}, allowed={allowed} — restarting");
+            Log.Message($"[AP] Chapter {chapterIndex} gated - have {allowed} Progressive Stage item(s), need {chapterIndex}.");
             __instance.ResetGame();
             return false;
         }

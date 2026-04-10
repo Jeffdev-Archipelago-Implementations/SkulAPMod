@@ -185,7 +185,7 @@ namespace SkulAPMod
                     string itemName = info?.ItemName ?? "Item";
                     string playerName = info != null ? capturedSession.Players.GetPlayerName(info.Player) : "";
                     string color = info != null ? Utils.GetItemColor(info.Flags) : "ffffff";
-                    string displayText = $"Sent: {itemName}";
+                    string displayText = $"Sent: {itemName} to {info.Player.Name}";
 
                     SkulAPMod.QueueMainThreadAction(() =>
                     {

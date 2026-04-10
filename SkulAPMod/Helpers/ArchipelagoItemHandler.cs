@@ -89,8 +89,8 @@ namespace SkulAPMod
                     Weapon secondary = weaponInventory.weapons[secondaryIndex];
                     if (secondary == null) break;
                     Log.Message($"[AP] De-Skull Trap: removing secondary skull at slot {secondaryIndex}");
-                    weaponInventory.Unequip(secondary);
                     Object.Destroy(secondary.gameObject);
+                    weaponInventory.Unequip(secondary);
                     break;
 
                 case ArchipelagoConstants.FoxNpc:
