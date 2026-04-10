@@ -217,7 +217,12 @@ namespace SkulAPMod
 
         public void SendDeathLink()
         {
-            if (_deathLinkService == null || _receivingDeathLink) return;
+            if (_deathLinkService == null) return;
+            if (_receivingDeathLink)
+            {
+                _receivingDeathLink = false;
+                return;
+            }
             _deathLinkService.SendDeathLink(new DeathLink(SlotName, $"{SlotName} was defeated in Skul: The Hero Slayer"));
             Log.Message("[AP] Sent DeathLink");
         }
@@ -232,7 +237,6 @@ namespace SkulAPMod
             SkulAPMod.QueueMainThreadAction(() =>
             {
                 Singleton<Service>.Instance.levelManager.player?.health.Kill();
-                _receivingDeathLink = false;
             });
         }
 

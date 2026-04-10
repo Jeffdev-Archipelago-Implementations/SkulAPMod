@@ -133,19 +133,7 @@ namespace SkulAPMod.Patches
 
             if (bonus == null) return;
 
-            int apLevel    = ArchipelagoItemTracker.AmountOfItem(itemId);
-            int prevLevel  = apLevel - 1;
-
-            WitchLevelOverride.Value = apLevel;
-            try
-            {
-                if (prevLevel == 0) bonus.Attach();
-                bonus.Update();
-            }
-            finally
-            {
-                WitchLevelOverride.Value = null;
-            }
+            bonus.Initialize();
         }
     }
 

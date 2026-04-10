@@ -85,6 +85,13 @@ namespace SkulAPMod
         {
             harmony = new Harmony(PluginGuid);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
+
+            var reviveType = AccessTools.TypeByName("ReviveComponent");
+            var reviveOnce = reviveType != null ? AccessTools.Method(reviveType, "ReviveOnce") : null;
+            if (reviveOnce != null)
+                harmony.Patch(reviveOnce, prefix: new HarmonyMethod(typeof(Patches.ReviveDetector), nameof(Patches.ReviveDetector.Prefix)));
+            else
+                Log.Warning("[AP] Could not find ReviveComponent.ReviveOnce — revive DeathLink guard inactive.");
         }
         
         public static void QueueMainThreadAction(Action action)

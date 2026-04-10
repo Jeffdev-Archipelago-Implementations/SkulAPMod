@@ -249,4 +249,37 @@
 	<ItemGroup>
 		<EmbeddedResource Include="Resources\Sprites\skul_ap.png" />
 	</ItemGroup>
+
+	<Target Name="PackageThunderstore" AfterTargets="Build">
+		<PropertyGroup>
+			<ThunderstoreDir>$(MSBuildProjectDirectory)\..\SkulThunderstore</ThunderstoreDir>
+			<PackageStageDir>$(MSBuildProjectDirectory)\..\SkulThunderstore\_stage</PackageStageDir>
+			<PackageVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(ThunderstoreDir)\manifest.json')), '"version_number"\s*:\s*"([^"]+)"').Groups[1].Value)</PackageVersion>
+			<ZipOutput>$(MSBuildProjectDirectory)\..\SkulThunderstore\SkulAPMod-$(PackageVersion).zip</ZipOutput>
+		</PropertyGroup>
+
+		<!-- Clean and recreate staging area -->
+		<RemoveDir Directories="$(PackageStageDir)" />
+		<MakeDir Directories="$(PackageStageDir)" />
+
+		<!-- Copy mod DLLs -->
+		<Copy SourceFiles="$(OutputPath)SkulAPMod.dll" DestinationFolder="$(PackageStageDir)" />
+		<Copy SourceFiles="$(OutputPath)Archipelago.MultiClient.Net.dll" DestinationFolder="$(PackageStageDir)" />
+		<Copy SourceFiles="$(OutputPath)Newtonsoft.Json.dll" DestinationFolder="$(PackageStageDir)" />
+
+		<!-- Copy Thunderstore metadata -->
+		<Copy SourceFiles="$(ThunderstoreDir)\manifest.json" DestinationFolder="$(PackageStageDir)" />
+		<Copy SourceFiles="$(ThunderstoreDir)\icon.png" DestinationFolder="$(PackageStageDir)" />
+		<Copy SourceFiles="$(ThunderstoreDir)\README.md" DestinationFolder="$(PackageStageDir)" />
+
+		<!-- Zip it up (delete old zip first) -->
+		<Delete Files="$(ZipOutput)" />
+		<ZipDirectory SourceDirectory="$(PackageStageDir)" DestinationFile="$(ZipOutput)" />
+
+		<!-- Clean up staging area -->
+		<RemoveDir Directories="$(PackageStageDir)" />
+
+		<Message Text="Thunderstore package: $(ZipOutput)" Importance="high" />
+	</Target>
+
 </Project>

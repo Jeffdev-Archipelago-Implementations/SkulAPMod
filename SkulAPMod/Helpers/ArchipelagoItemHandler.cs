@@ -97,6 +97,7 @@ namespace SkulAPMod
                 case ArchipelagoConstants.OgreNpc:
                 case ArchipelagoConstants.DruidNpc:
                 case ArchipelagoConstants.DeathKnightNpc:
+                    Patches.GameDataProgress_SetRescued_Patch.BypassCheck = true;
                     GameData.Progress.SetRescued(itemId switch
                     {
                         ArchipelagoConstants.FoxNpc        => NpcType.Fox,
@@ -104,6 +105,7 @@ namespace SkulAPMod
                         ArchipelagoConstants.DruidNpc      => NpcType.Druid,
                         _                                  => NpcType.DeathKnight,
                     }, true);
+                    Patches.GameDataProgress_SetRescued_Patch.BypassCheck = false;
                     break;
             }
         }

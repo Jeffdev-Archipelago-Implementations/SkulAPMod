@@ -9,7 +9,7 @@ namespace SkulAPMod.Patches
         {
             if (SkulAPMod.APClient.IsConnected)
             {
-                // Always set Tutorial to true so we don't have to deal with tutorial every time
+                // Always set Tutorial to true so we don't have to deal with tutorial every time.
                 __result = true;
             }
         }

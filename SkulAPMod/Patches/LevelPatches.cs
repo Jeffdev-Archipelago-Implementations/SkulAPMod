@@ -104,13 +104,23 @@ namespace SkulAPMod.Patches
         }
     }
 
+    public static class ReviveDetector
+    {
+        public static bool PlayerJustRevived;
+        public static void Prefix() => PlayerJustRevived = true;
+    }
+
     // Send DeathLink when the player actually dies (health.dead == true).
-    // Manual pause-menu restarts don't set health.dead, so they're safely ignored.
     [HarmonyPatch(typeof(LevelManager), "ResetGame", new System.Type[0])]
     public class LevelManager_ResetGame_DeathLink_Patch
     {
         static void Prefix(LevelManager __instance)
         {
+            if (ReviveDetector.PlayerJustRevived)
+            {
+                ReviveDetector.PlayerJustRevived = false;
+                return;
+            }
             if (!SkulAPMod.APClient.IsConnected) return;
             if (__instance.player?.health.dead == true)
                 SkulAPMod.APClient.SendDeathLink();
