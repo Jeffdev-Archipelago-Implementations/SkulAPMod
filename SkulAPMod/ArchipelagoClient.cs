@@ -1,12 +1,17 @@
 using Archipelago.MultiClient.Net;
+using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.MessageLog.Messages;
+using Archipelago.MultiClient.Net.Models;
+using Newtonsoft.Json.Linq;
+using Singletons;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Archipelago.MultiClient.Net.Models;
-using Newtonsoft.Json.Linq;
+using System.Threading.Tasks;
+using Services;
+using UnityEngine;
 
 // ReSharper disable All
 
@@ -16,21 +21,14 @@ namespace SkulAPMod
     {
         private ArchipelagoSession session { get; set; }
         private int _itemsToSkip;
+        private DeathLinkService _deathLinkService;
+        private bool _receivingDeathLink;
 
-#if DEBUG
-        private bool _mockConnected;
-        private string _mockSeed;
-        public bool IsMockConnected => _mockConnected;
-#endif
-
-        public bool IsConnected =>
-#if DEBUG
-            _mockConnected ||
-#endif
-            (session?.Socket.Connected ?? false);
+        public bool IsConnected => session?.Socket.Connected ?? false;
 
         public string SlotName { get; private set; }
         public string Seed { get; private set; }
+        public string ServerVersion { get; private set; }
 
         public event Action OnConnected;
         public event Action<string> OnConnectionFailed;
@@ -66,6 +64,8 @@ namespace SkulAPMod
 
                     SlotName = slotName;
                     Seed = session.RoomState.Seed;
+                    var v = session.RoomState.Version;
+                    ServerVersion = $"{v.Major}.{v.Minor}.{v.Build}";
 
                     if (Patches.Application_persistentDataPath_Patch.SetSlot(SlotName, Seed))
                     {
@@ -76,7 +76,9 @@ namespace SkulAPMod
 
                     APSaveManager.Load(SlotName, Seed);
                     ArchipelagoItemHandler.LoadOptions();
+                    InitDeathLink();
                     session.Items.ItemReceived += OnItemReceived;
+                    session.MessageLog.OnMessageReceived += OnMessageReceived;
                     _itemsToSkip = ArchipelagoItemTracker.LoadFromServer();
 
                     OnConnected?.Invoke();
@@ -107,6 +109,7 @@ namespace SkulAPMod
             if (session == null) return;
             session.Socket.DisconnectAsync();
             session = null;
+            _deathLinkService = null;
             Log.Message("Disconnected from Archipelago");
         }
 
@@ -138,6 +141,19 @@ namespace SkulAPMod
             helper.DequeueItem();
         }
 
+        private void OnMessageReceived(Archipelago.MultiClient.Net.MessageLog.Messages.LogMessage message)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var part in message.Parts)
+            {
+                var c = part.Color;
+                string hex = $"{c.R:X2}{c.G:X2}{c.B:X2}";
+                sb.Append($"<color=#{hex}>{part.Text}</color>");
+            }
+            string line = sb.ToString();
+            SkulAPMod.QueueMainThreadAction(() => MessageLogUI.AddMessage(line));
+        }
+
         private void OnError(Exception ex, string message)
         {
             Log.Error($"Socket error: {message} - {ex.Message}");
@@ -155,6 +171,69 @@ namespace SkulAPMod
             ArchipelagoItemTracker.AddCheckedLocation(locationId);
             session.Locations.CompleteLocationChecks(locationId);
             Log.Message($"Sent location check: {locationId}");
+            ShowLocationSentFloatingText(locationId);
+        }
+
+        private void ShowLocationSentFloatingText(long locationId)
+        {
+            var capturedSession = session;
+            Task.Run(() =>
+            {
+                try
+                {
+                    var info = capturedSession?.Locations.ScoutLocationsAsync(false, locationId)?.Result?.Values.FirstOrDefault();
+                    string itemName = info?.ItemName ?? "Item";
+                    string playerName = info != null ? capturedSession.Players.GetPlayerName(info.Player) : "";
+                    string color = info != null ? Utils.GetItemColor(info.Flags) : "ffffff";
+                    string displayText = $"Sent: {itemName}";
+
+                    SkulAPMod.QueueMainThreadAction(() =>
+                    {
+                        try
+                        {
+                            var spawner = Singleton<Service>.Instance?.floatingTextSpawner;
+                            var player = Singleton<Service>.Instance?.levelManager?.player;
+                            if (spawner == null || player == null) return;
+                            spawner.SpawnBuff(displayText, player.transform.position, color);
+                        }
+                        catch (Exception ex) { Log.Error($"[AP] FloatingText spawn error: {ex.Message}"); }
+                    });
+                }
+                catch (Exception ex) { Log.Error($"[AP] Location scout error: {ex.Message}"); }
+            });
+        }
+
+        private void InitDeathLink()
+        {
+            string val = null;
+            try { val = GetSlotDataValue(ArchipelagoConstants.DeathLinkOption); } catch { }
+            if (val != "1" && val != "true") return;
+
+            _deathLinkService = session.CreateDeathLinkService();
+            _deathLinkService.OnDeathLinkReceived += OnDeathLinkReceived;
+            _deathLinkService.EnableDeathLink();
+            Log.Message("[AP] DeathLink enabled");
+        }
+
+        public void SendDeathLink()
+        {
+            if (_deathLinkService == null || _receivingDeathLink) return;
+            _deathLinkService.SendDeathLink(new DeathLink(SlotName, $"{SlotName} was defeated in Skul: The Hero Slayer"));
+            Log.Message("[AP] Sent DeathLink");
+        }
+
+        private void OnDeathLinkReceived(DeathLink deathLink)
+        {
+            string source = deathLink.Source ?? "Unknown";
+            string cause = deathLink.Cause ?? $"{source} died";
+            Log.Message($"[AP] DeathLink received from {source}: {cause}");
+
+            _receivingDeathLink = true;
+            SkulAPMod.QueueMainThreadAction(() =>
+            {
+                Singleton<Service>.Instance.levelManager.player?.health.Kill();
+                _receivingDeathLink = false;
+            });
         }
 
         public string GetSlotDataValue(string key)
@@ -179,41 +258,7 @@ namespace SkulAPMod
             throw new SlotDataException($"Invalid option requested from apworld: {key}. Did you generate on the wrong version?");
         }
 
-        public string GetSeed()
-        {
-#if DEBUG
-            if (_mockConnected) return _mockSeed;
-#endif
-            return session?.RoomState?.Seed;
-        }
-
-#if DEBUG
-        public void MockConnect(string slotName, string seed = "mock_seed_1")
-        {
-            if (_mockConnected) return;
-            SlotName = slotName;
-            _mockSeed = seed;
-            _mockConnected = true;
-            Log.Message($"[MockAP] Mock-connected as slot '{slotName}' seed '{seed}'");
-            ArchipelagoItemTracker.LoadFromServer();
-            OnConnected?.Invoke();
-        }
-
-        public void MockDisconnect()
-        {
-            if (!_mockConnected) return;
-            _mockConnected = false;
-            Log.Message("[MockAP] Mock-disconnected");
-            OnDisconnected?.Invoke();
-        }
-
-        public void MockReceiveItem(long itemId, string itemName = null)
-        {
-            itemName ??= $"Item#{itemId}";
-            ArchipelagoItemTracker.AddReceivedItem(itemId);
-            Log.Message($"[MockAP] Item received: {itemName} ({itemId})");
-        }
-#endif
+        public string GetSeed() => session?.RoomState?.Seed;
         
         public ScoutedItemInfo TryScoutLocation(long locationId, bool createHint = false)
         {

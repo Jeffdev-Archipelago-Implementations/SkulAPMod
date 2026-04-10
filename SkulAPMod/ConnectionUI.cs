@@ -127,11 +127,6 @@ namespace SkulAPMod
             {
                 if (GUILayout.Button("Disconnect", GUILayout.Height(40)))
                 {
-#if DEBUG
-                    if (apClient.IsMockConnected)
-                        apClient.MockDisconnect();
-                    else
-#endif
                         apClient.Disconnect();
                 }
             }
@@ -153,22 +148,6 @@ namespace SkulAPMod
                         statusMessage = "Invalid port number!";
                     }
                 }
-
-#if DEBUG
-                GUILayout.Space(10);
-                if (GUILayout.Button("Mock Connect (Debug)", GUILayout.Height(40)))
-                {
-                    if (string.IsNullOrEmpty(slotName))
-                    {
-                        statusMessage = "Please enter a slot name!";
-                    }
-                    else
-                    {
-                        statusMessage = "Mock connected!";
-                        apClient?.MockConnect(slotName);
-                    }
-                }
-#endif
             }
 
             GUILayout.Space(15);

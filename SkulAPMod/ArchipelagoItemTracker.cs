@@ -96,9 +96,9 @@ namespace SkulAPMod
             {
                 "Characters.WitchBonus+Skull" => // Skull
                     AmountOfItem(ArchipelagoConstants.ProgressiveSkullTree) >= indexInTree,
-                "Characters.WitchBonus+Bone" => // Bone
+                "Characters.WitchBonus+Body" => // Bone
                     AmountOfItem(ArchipelagoConstants.ProgressiveBoneTree) >= indexInTree,
-                "Characters.WitchBonus+Spirit" => // Spirit
+                "Characters.WitchBonus+Soul" => // Spirit
                     AmountOfItem(ArchipelagoConstants.ProgressiveSpiritTree) >= indexInTree,
                 _ => false
             };

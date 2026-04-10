@@ -192,6 +192,9 @@ namespace SkulAPMod.Patches
                     ____bonus.tree.ToString(),
                     ____bonus.indexInTree);
                 
+                Log.Info(____bonus.tree.ToString());
+                Log.Info(____bonus.indexInTree);
+                
                 long locationId = baseId.Value + ____bonus.level;
                 var info = GetScoutInfo(locationId);
                 ____level.text = $"Checks Sent: {____bonus.level}/{____bonus.maxLevel}";

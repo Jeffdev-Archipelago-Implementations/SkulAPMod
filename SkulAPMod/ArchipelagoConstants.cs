@@ -89,28 +89,23 @@ namespace SkulAPMod
         public const long ForestMiniBossDefeated    = 236;
         public const long ForestBossDefeated        = 237;
         public const long GrandHallMiniBossDefeated = 238;
-        public const long GrandHallBossDefeated     = 239;
-        public const long BlackLabMiniBossDefeated  = 240;
-        public const long BlackLabBossDefeated      = 241;
-        public const long FortressBossDefeated      = 242;
-
-        // NPC locations (243–246)
-        public const long FoxNpcFreed               = 243;
-        public const long OgreNpcFreed              = 244;
-        public const long DruidNpcFreed             = 245;
-        public const long KnightNpcFreed            = 246;
-
-        // Shrine (altar) breaks — 5 per chapter (247–266)
-        public const long ForestShrine1Broken       = 247;
-        public const long GrandHallShrine1Broken    = 252;
-        public const long BlackLabShrine1Broken     = 257;
-        public const long FortressShrine1Broken     = 262;
+        public const long FortressMiniBossDefeated  = 239;
+        public const long GrandHallBossDefeated     = 240;
+        public const long BlackLabMiniBossDefeated  = 241;
+        public const long BlackLabBossDefeated      = 242;
+        public const long FortressBossDefeated      = 243;
         
-        // Room cleared (8 rooms per area)
+        // Room cleared (8-16 rooms per area)
         public const long ForestRoom1Cleared        = 500;
         public const long GrandHallRoom1Cleared     = 600;
         public const long BlackLabRoom1Cleared      = 700;
         public const long FortressRoom1Cleared      = 800;
+        
+        // Shrine (altar) breaks — 0-10 per chapter
+        public const long ForestShrine1Broken       = 550;
+        public const long GrandHallShrine1Broken    = 650;
+        public const long BlackLabShrine1Broken     = 750;
+        public const long FortressShrine1Broken     = 850;
         
         // ========== WITCH BONUS KEY → ITEM ID ==========
         public static readonly System.Collections.Generic.Dictionary<string, long> BonusKeyToItemId =
@@ -148,7 +143,10 @@ namespace SkulAPMod
 
 
         // ========== OPTION CONSTANTS ==========
-        public const string QuartzMultOption    = "quartz_mult";
-        public const string ReqRoomCountOption  = "req_room_count";
+        public const string QuartzMultOption       = "quartz_mult";
+        public const string ReqRoomCountOption    = "req_room_count";
+        public const string DeathLinkOption       = "death_link";
+        public const string ShrineChecksOption    = "shrine_checks_count";
+        public const string TrapsEnabledOption    = "traps_enabled";
     }
 }

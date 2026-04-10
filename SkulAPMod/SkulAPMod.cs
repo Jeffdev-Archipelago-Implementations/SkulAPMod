@@ -150,6 +150,8 @@ namespace SkulAPMod
             var ui = uiObject.AddComponent<ConnectionUI>();
             ui.Initialize(APClient);
 
+            uiObject.AddComponent<MessageLogUI>();
+
             uiCreated = true;
         }
 
