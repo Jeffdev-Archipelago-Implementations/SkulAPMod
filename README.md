@@ -1,24 +1,23 @@
 
-# Garfield Kart: Furious Racing Archipelago
+# Skul: The Hero Slayer Archipelago
 
-Adds support for [Archipelago](https://archipelago.gg/) to Garfield Kart: Furious Racing. Currently a Work in Progress mod.
+Adds support for [Archipelago](https://archipelago.gg/) to Skul: The Hero Slayer.
 
 ## APWorld
 
-The APWorld for this mod can be installed [on this github repo](https://github.com/FeluciaPS/Archipelago/releases)
+The APWorld for this mod can be installed [on this github repo](https://github.com/Jeffdev-Archipelago-Implementations/Archipelago-Skul/releases)
 
 ## Bug Reports
 
-Please report any bugs or issues you find in [this channel](https://discord.com/channels/731205301247803413/1315673680155639848) in the Archipelago discord server.
+Please report any bugs or issues you find in [this channel](https://discord.com/channels/731205301247803413/1346144590536904734) in the Archipelago discord server.
 
 ## Installation
 
 Ideally, use [r2modman](https://thunderstore.io/package/ebkr/r2modman/) or something like it.
 
-If installing manually, use r2modman and select "Import Local Mod" after making a profile for Garfield Kart, then select the zipped file. It will then import it into your profile with dependencies.
+If installing manually, use r2modman and select "Import Local Mod" after making a profile for Skul: The Hero Slayer, then select the zipped file. It will then import it into your profile with dependencies.
 
 ## Credits
 
-- FeluciaPS for creating the APWorld and being a big motivator and assistant!
-- Vyik and Av for getting me to make this and helping out a ton with logic
+- Binxford890 and Blackout8444 for helping immensely with feedback, logic, and generally the whole logic
 - Everyone else in the Archipelago discord for all the amazing work they do
