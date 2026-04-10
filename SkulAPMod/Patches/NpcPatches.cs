@@ -12,9 +12,9 @@ namespace SkulAPMod.Patches
         // Set this before calling SetRescued from GrantItem so we don't block ourselves.
         public static bool BypassCheck;
 
-        static bool Prefix(NpcType npcType, bool rescued)
+        static bool Prefix(NpcType npcType, bool value)
         {
-            if (!rescued) return true;
+            if (!value) return true;
             if (!SkulAPMod.APClient.IsConnected) return true;
             if (BypassCheck) return true;
 

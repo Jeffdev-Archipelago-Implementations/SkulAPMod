@@ -135,7 +135,7 @@ namespace SkulAPMod.Patches
     {
         static bool Prefix(LevelManager __instance, Chapter.Type chapter)
         {
-            if (!SkulAPMod.APClient.IsConnected) return true;
+            if (SkulAPMod.APClient == null || !SkulAPMod.APClient.IsConnected) return true;
 
             int chapterIndex = (int)chapter - 3; // Chapter1=0, Chapter2=1, Chapter3=2, Chapter4=3
             if (chapterIndex <= 0 || chapterIndex > 4) return true; // not a gateable main chapter
