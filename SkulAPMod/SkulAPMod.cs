@@ -19,7 +19,7 @@ namespace SkulAPMod
         private const string PluginGuid = PluginAuthor + "." + PluginName;
         private const string PluginAuthor = "Jeffdev";
         private const string PluginName = "SkulAPMod";
-        private const string PluginVersion = "0.1.0";
+        private const string PluginVersion = "0.1.1";
 
         private Harmony harmony;
         public static Dictionary<string, object> sessionSlotData;
@@ -37,7 +37,7 @@ namespace SkulAPMod
             ApplyPatches();
             InitializeComponents();
 
-            Log.Info($"{PluginName} loaded successfully!");
+            Log.Info($"{PluginName} loaded successfully");
         }
 
         private void InitializeLogging()
