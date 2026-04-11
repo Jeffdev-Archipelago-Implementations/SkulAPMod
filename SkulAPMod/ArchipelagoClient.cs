@@ -24,11 +24,14 @@ namespace SkulAPMod
         private DeathLinkService _deathLinkService;
         private bool _receivingDeathLink;
 
+        public bool DeathLinkEnabled { get; private set; }
+
         public bool IsConnected => session?.Socket.Connected ?? false;
 
         public string SlotName { get; private set; }
         public string Seed { get; private set; }
         public string ServerVersion { get; private set; }
+        public string ApworldVersion { get; private set; }
 
         public event Action OnConnected;
         public event Action<string> OnConnectionFailed;
@@ -64,8 +67,6 @@ namespace SkulAPMod
 
                     SlotName = slotName;
                     Seed = session.RoomState.Seed;
-                    var v = session.RoomState.Version;
-                    ServerVersion = $"{v.Major}.{v.Minor}.{v.Build}";
 
                     if (Patches.Application_persistentDataPath_Patch.SetSlot(SlotName, Seed))
                     {
@@ -196,7 +197,7 @@ namespace SkulAPMod
                             if (spawner == null || player == null) return;
                             spawner.SpawnBuff(displayText, player.transform.position, color);
                         }
-                        catch (Exception ex) { Log.Error($"[AP] FloatingText spawn error: {ex.Message}"); }
+                        catch (Exception ex) { Log.Error($"[AP] Floating Text spawn error: {ex.Message}"); }
                     });
                 }
                 catch (Exception ex) { Log.Error($"[AP] Location scout error: {ex.Message}"); }
@@ -205,19 +206,33 @@ namespace SkulAPMod
 
         private void InitDeathLink()
         {
-            string val = null;
-            try { val = GetSlotDataValue(ArchipelagoConstants.DeathLinkOption); } catch { }
-            if (val != "1" && val != "true") return;
-
             _deathLinkService = session.CreateDeathLinkService();
             _deathLinkService.OnDeathLinkReceived += OnDeathLinkReceived;
-            _deathLinkService.EnableDeathLink();
-            Log.Message("[AP] DeathLink enabled");
+
+            string val = null;
+            try { val = GetSlotDataValue(ArchipelagoConstants.DeathLinkOption); } catch { }
+            if (val == "1" || val == "true")
+            {
+                DeathLinkEnabled = true;
+                _deathLinkService.EnableDeathLink();
+                Log.Message("[AP] DeathLink enabled");
+            }
+        }
+
+        public void SetDeathLinkEnabled(bool enabled)
+        {
+            if (_deathLinkService == null) return;
+            DeathLinkEnabled = enabled;
+            if (enabled)
+                _deathLinkService.EnableDeathLink();
+            else
+                _deathLinkService.DisableDeathLink();
+            Log.Message($"[AP] DeathLink toggled {(enabled ? "on" : "off")}");
         }
 
         public void SendDeathLink()
         {
-            if (_deathLinkService == null) return;
+            if (_deathLinkService == null || !DeathLinkEnabled) return;
             if (_receivingDeathLink)
             {
                 _receivingDeathLink = false;

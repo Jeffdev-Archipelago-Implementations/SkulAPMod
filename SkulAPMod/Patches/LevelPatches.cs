@@ -127,6 +127,24 @@ namespace SkulAPMod.Patches
         }
     }
 
+    // Re-grant filler gold and bone items received from AP after each death/restart.
+    [HarmonyPatch(typeof(LevelManager), "ResetGame", new System.Type[0])]
+    public class LevelManager_ResetGame_RegrantFiller_Patch
+    {
+        static void Postfix()
+        {
+            if (!SkulAPMod.APClient.IsConnected) return;
+
+            int goldCount = ArchipelagoItemTracker.AmountOfItem(ArchipelagoConstants.GoldItem);
+            for (int i = 0; i < goldCount; i++)
+                ArchipelagoItemHandler.GrantItem(ArchipelagoConstants.GoldItem);
+
+            int boneCount = ArchipelagoItemTracker.AmountOfItem(ArchipelagoConstants.BoneItem);
+            for (int i = 0; i < boneCount; i++)
+                ArchipelagoItemHandler.GrantItem(ArchipelagoConstants.BoneItem);
+        }
+    }
+
     // Block chapter advancement if the player hasn't received enough ProgressiveStage items.
     // Chapter1=index 0 (free), Chapter2=needs 1, Chapter3=needs 2, Chapter4=needs 3.
     [HarmonyPatch(typeof(LevelManager), "ChangeChapter")]

@@ -70,6 +70,13 @@ namespace SkulAPMod
 
         private void Update()
         {
+            if (_restartRequired)
+            {
+                showUI = true;
+                Time.timeScale = 0f;
+                return;
+            }
+
             bool needsConn = NeedsConnection;
 
             if (needsConn)
@@ -77,7 +84,7 @@ namespace SkulAPMod
                 showUI = true;
                 Time.timeScale = 0f;
             }
-            else if (!needsConn)
+            else
             {
                 showUI = false;
                 Time.timeScale = 1f;

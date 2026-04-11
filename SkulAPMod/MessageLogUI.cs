@@ -47,13 +47,13 @@ namespace SkulAPMod
 
             float panelWidth = 620f;
             float x = 4f;
-            
+
             var client = SkulAPMod.APClient;
             string statusText;
             Color statusColor;
             if (client != null && client.IsConnected)
             {
-                statusText = $"[F9] AP {client.ServerVersion}  |  Connected as {client.SlotName} {(_visible ? "▼" : "▲")}";
+                statusText = $"[F9] Skul {SkulAPMod.Version}  |  Connected as {client.SlotName} {(_visible ? "▼" : "▲")}";
                 statusColor = new Color(0.59f, 0.96f, 0.59f, 0.9f);
             }
             else
@@ -69,6 +69,23 @@ namespace SkulAPMod
                 normal = { textColor = statusColor }
             };
             GUI.Label(new Rect(x, 2f, panelWidth, 18f), statusText, statusStyle);
+
+            // DeathLink toggle directly after the status text
+            if (client != null && client.IsConnected)
+            {
+                var toggleStyle = new GUIStyle(GUI.skin.toggle)
+                {
+                    fontSize = 12,
+                    fontStyle = FontStyle.Bold,
+                    normal = { textColor = Color.white },
+                    onNormal = { textColor = new Color(0.59f, 0.96f, 0.59f) }
+                };
+                float textWidth = statusStyle.CalcSize(new GUIContent(statusText)).x;
+                float toggleX = x + textWidth + 6f;
+                bool newVal = GUI.Toggle(new Rect(toggleX, 2f, 110f, 18f), client.DeathLinkEnabled, " DeathLink", toggleStyle);
+                if (newVal != client.DeathLinkEnabled)
+                    client.SetDeathLinkEnabled(newVal);
+            }
 
             if (!_visible) return;
 
