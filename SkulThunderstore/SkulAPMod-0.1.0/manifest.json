@@ -1,0 +1,8 @@
+{
+  "name": "SkulAPMod",
+  "version_number": "0.1.4",
+  "website_url": "https://github.com/Jeffdev-Archipelago-Implementations/SkulAPMod",
+  "description": "Archipelago.gg implementation for Skul: The Hero Slayer",
+  "dependencies": [
+  ]
+}

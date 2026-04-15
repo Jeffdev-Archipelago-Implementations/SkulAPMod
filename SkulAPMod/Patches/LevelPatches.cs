@@ -142,6 +142,12 @@ namespace SkulAPMod.Patches
             int boneCount = ArchipelagoItemTracker.AmountOfItem(ArchipelagoConstants.BoneItem);
             for (int i = 0; i < boneCount; i++)
                 ArchipelagoItemHandler.GrantItem(ArchipelagoConstants.BoneItem);
+
+            // Reset reassembleUsed so Reassemble is available again next run.
+            // WitchBonus.Apply re-creates the bonus objects on run start, but
+            // GameData.Progress.reassembleUsed persists and must be cleared here.
+            if (ArchipelagoItemTracker.AmountOfItem(ArchipelagoConstants.Reassemble) > 0)
+                Data.GameData.Progress.reassembleUsed = false;
         }
     }
 

@@ -1,6 +1,7 @@
 using BepInEx;
 using HarmonyLib;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using Services;
@@ -22,6 +23,8 @@ namespace SkulAPMod
         private const string PluginVersion = "0.1.3";
         public const string Version = PluginVersion;
 
+        public static SkulAPMod Instance { get; private set; }
+
         private Harmony harmony;
         public static Dictionary<string, object> sessionSlotData;
         public static ArchipelagoClient APClient { get; private set; }
@@ -29,11 +32,17 @@ namespace SkulAPMod
 
         private static GameObject uiObject;
         private static bool uiCreated;
-        private FileWriter fileWriter;
         private static readonly Queue<Action> _mainThreadQueue = new();
-        
+
+        // Location sends are queued and drip-sent with a delay so the AP server
+        // doesn't drop rapid-fire checks.
+        private static readonly Queue<long> _locationSendQueue = new();
+        private const float LocationSendDelay = 0.5f;
+        private bool _sendingLocations;
+
         public void Awake()
         {
+            Instance = this;
             InitializeLogging();
             ApplyPatches();
             InitializeComponents();
@@ -45,7 +54,7 @@ namespace SkulAPMod
         {
             Log.Init(Logger);
         }
-        
+
         private void InitializeComponents()
         {
             fileWriter = gameObject.AddComponent<FileWriter>();
@@ -55,6 +64,8 @@ namespace SkulAPMod
             APClient.OnConnected += OnArchipelagoConnected;
             APClient.OnDisconnected += OnArchipelagoDisconnected;
         }
+
+        private FileWriter fileWriter;
 
         private static Sprite LoadEmbeddedSprite(string resourceName)
         {
@@ -87,14 +98,54 @@ namespace SkulAPMod
             harmony = new Harmony(PluginGuid);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
 
-            var reviveType = AccessTools.TypeByName("ReviveComponent");
-            var reviveOnce = reviveType != null ? AccessTools.Method(reviveType, "ReviveOnce") : null;
-            if (reviveOnce != null)
-                harmony.Patch(reviveOnce, prefix: new HarmonyMethod(typeof(Patches.ReviveDetector), nameof(Patches.ReviveDetector.Prefix)));
+            // Patch WitchBonus.ReviveOnce.Revive():
+            //   - sets WitchLevelOverride so the heal/duration use the AP level (not _data.value=0)
+            //   - sets PlayerJustRevived so DeathLink is not sent for this revive
+            var reviveOnceType = AccessTools.TypeByName("Characters.WitchBonus+ReviveOnce");
+            var reviveMethod = reviveOnceType != null ? AccessTools.Method(reviveOnceType, "Revive") : null;
+            if (reviveMethod != null)
+            {
+                harmony.Patch(reviveMethod,
+                    prefix:  new HarmonyMethod(typeof(ReviveOnce_Revive_Patch), nameof(ReviveOnce_Revive_Patch.Prefix)),
+                    postfix: new HarmonyMethod(typeof(ReviveOnce_Revive_Patch), nameof(ReviveOnce_Revive_Patch.Postfix)));
+            }
             else
-                Log.Warning("[AP] Could not find ReviveComponent.ReviveOnce — revive DeathLink guard inactive.");
+            {
+                Log.Warning("[AP] Could not find WitchBonus+ReviveOnce.Revive — Reassemble AP level and DeathLink guard inactive.");
+            }
         }
-        
+
+        /// <summary>
+        /// Enqueue a location check to be sent with a 0.5s gap between each send,
+        /// so the AP server doesn't drop rapid-fire checks.
+        /// </summary>
+        public static void EnqueueLocationSend(long locationId)
+        {
+            if (ArchipelagoItemTracker.HasLocation(locationId)) return;
+            lock (_locationSendQueue)
+                _locationSendQueue.Enqueue(locationId);
+            if (Instance != null && !Instance._sendingLocations)
+                Instance.StartCoroutine(Instance.ProcessLocationSendQueue());
+        }
+
+        private IEnumerator ProcessLocationSendQueue()
+        {
+            _sendingLocations = true;
+            while (true)
+            {
+                long locationId;
+                lock (_locationSendQueue)
+                {
+                    if (_locationSendQueue.Count == 0) break;
+                    locationId = _locationSendQueue.Dequeue();
+                }
+                if (!ArchipelagoItemTracker.HasLocation(locationId))
+                    APClient.SendLocation(locationId);
+                yield return new WaitForSeconds(LocationSendDelay);
+            }
+            _sendingLocations = false;
+        }
+
         public static void QueueMainThreadAction(Action action)
         {
             lock (_mainThreadQueue) _mainThreadQueue.Enqueue(action);
@@ -174,4 +225,3 @@ namespace SkulAPMod
         }
     }
 }
-

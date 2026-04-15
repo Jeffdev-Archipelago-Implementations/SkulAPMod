@@ -32,7 +32,7 @@ namespace SkulAPMod.Patches
         {
             for (int lvl = 0; lvl < level; lvl++)
                 if (!ArchipelagoItemTracker.HasLocation(baseId + lvl))
-                    SkulAPMod.APClient.SendLocation(baseId + lvl);
+                    SkulAPMod.EnqueueLocationSend(baseId + lvl);
         }
     }
     
@@ -124,9 +124,9 @@ namespace SkulAPMod.Patches
                 ArchipelagoConstants.FracturePrevention       => wb.body.fractureImmunity,
                 ArchipelagoConstants.HeavyFrame               => wb.body.heavyFrame,
                 ArchipelagoConstants.Reassemble               => wb.body.reassemble,
+                ArchipelagoConstants.FatalMind                => wb.soul.fatalMind,
                 ArchipelagoConstants.SpiritAcceleration       => wb.soul.soulAcceleration,
                 ArchipelagoConstants.AncestralFortitude       => wb.soul.willOfAncestor,
-                ArchipelagoConstants.FatalMind                => wb.soul.fatalMind,
                 ArchipelagoConstants.AncientAlchemy           => wb.soul.ancientAlchemy,
                 _ => null
             };
@@ -179,9 +179,6 @@ namespace SkulAPMod.Patches
                 bool isInteractable = ArchipelagoItemTracker.CheckWitchTreeAvailability(
                     ____bonus.tree.ToString(),
                     ____bonus.indexInTree);
-                
-                Log.Info(____bonus.tree.ToString());
-                Log.Info(____bonus.indexInTree);
                 
                 long locationId = baseId.Value + ____bonus.level;
                 var info = GetScoutInfo(locationId);
@@ -264,6 +261,22 @@ namespace SkulAPMod.Patches
             if (ReferenceEquals(bonus.tree, wb.body))  return ArchipelagoConstants.BodyBonusLocations[i];
             if (ReferenceEquals(bonus.tree, wb.soul))  return ArchipelagoConstants.SoulBonusLocations[i];
             return null;
+        }
+    }
+    
+    public static class ReviveOnce_Revive_Patch
+    {
+        public static void Prefix(Characters.WitchBonus.Bonus __instance)
+        {
+            ReviveDetector.PlayerJustRevived = true;
+            if (!SkulAPMod.APClient.IsConnected) return;
+            int apLevel = ArchipelagoItemTracker.AmountOfWitchBonus(__instance._key);
+            WitchLevelOverride.Value = apLevel;
+        }
+
+        public static void Postfix()
+        {
+            WitchLevelOverride.Value = null;
         }
     }
 }
