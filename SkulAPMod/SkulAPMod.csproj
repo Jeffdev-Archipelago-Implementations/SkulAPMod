@@ -6,7 +6,8 @@
 		<Description>Skul AP Mod Implementation</Description>
 		<Version>1.0.0</Version>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<OutputPath>C:\Users\robot\AppData\Roaming\r2modmanPlus-local\SkulTheHeroSlayer\profiles\Default\BepInEx\plugins\Unknown-SkulAPMod\</OutputPath>
+		<OutputPath>C:\Users\robot\AppData\Roaming\r2modmanPlus-local\SkulTheHeroSlayer\profiles\Default\BepInEx\plugins\Jeffdev-SkulAPMod\</OutputPath>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 		<LangVersion>latest</LangVersion>
 	</PropertyGroup>
 
