@@ -52,4 +52,14 @@ namespace SkulAPMod.Patches
             SkulAPMod.APClient.SendLocation(ArchipelagoConstants.CastleRepair1 + sent);
         }
     }
+    
+    [HarmonyPatch(typeof(Housing.BuildLevel), "cost", MethodType.Getter)]
+    public class BuildLevel_Cost_Patch
+    {
+        static void Postfix(ref int __result)
+        {
+            __result = (int)(__result * 0.2f);
+        }
+    }
+
 }

@@ -101,11 +101,8 @@ namespace SkulAPMod
         public const long BlackLabRoom1Cleared      = 700;
         public const long FortressRoom1Cleared      = 800;
         
-        // Shrine (altar) breaks — 0-10 per chapter
-        public const long ForestShrine1Broken       = 550;
-        public const long GrandHallShrine1Broken    = 650;
-        public const long BlackLabShrine1Broken     = 750;
-        public const long FortressShrine1Broken     = 850;
+        // Shrine (altar) breaks — global pool (550–599)
+        public const long Shrine1Broken             = 550;
         
         // ========== WITCH BONUS KEY → ITEM ID ==========
         public static readonly System.Collections.Generic.Dictionary<string, long> BonusKeyToItemId =
@@ -136,8 +133,8 @@ namespace SkulAPMod
         // Room cleared base location IDs, indexed by chapter (0=Forest, 1=GrandHall, 2=BlackLab, 3=Fortress)
         public static readonly long[] ChapterRoomBaseLocations   = { ForestRoom1Cleared,    GrandHallRoom1Cleared,    BlackLabRoom1Cleared,    FortressRoom1Cleared };
 
-        // Shrine break base location IDs, indexed by chapter
-        public static readonly long[] ChapterShrineBaseLocations = { ForestShrine1Broken, GrandHallShrine1Broken, BlackLabShrine1Broken, FortressShrine1Broken };
+        // Shrine break base location ID (global pool)
+        public const long ShrineBaseLocation = Shrine1Broken;
 
         // ========== GOAL CONSTANTS ==========
 

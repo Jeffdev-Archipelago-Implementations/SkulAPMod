@@ -179,18 +179,15 @@ namespace SkulAPMod.Patches
         {
             if (!SkulAPMod.APClient.IsConnected) return;
 
-            int chapter = StageTracker.Chapter;
-            if (chapter < 0 || chapter >= ArchipelagoConstants.ChapterShrineBaseLocations.Length) return;
-
             int cap = ArchipelagoItemHandler.ShrineChecksCount;
-            long baseId = ArchipelagoConstants.ChapterShrineBaseLocations[chapter];
+            long baseId = ArchipelagoConstants.ShrineBaseLocation;
             int sent = 0;
             for (int i = 0; i < cap; i++)
                 if (ArchipelagoItemTracker.HasLocation(baseId + i)) sent++;
 
             if (sent >= cap) return;
 
-            Log.Info($"Shrine destroyed: Chapter={chapter}, ShrinesSentSoFar={sent}");
+            Log.Info($"Shrine destroyed: ShrinesSentSoFar={sent}");
             SkulAPMod.APClient.SendLocation(baseId + sent);
         }
     }
